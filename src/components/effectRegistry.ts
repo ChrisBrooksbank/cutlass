@@ -11,6 +11,12 @@ import {
   renderShapeArrow,
 } from './shapeAnnotationUtils'
 import { computeCropRegion } from './cropUtils'
+import {
+  computeIntroOutroScene,
+  renderIntroOutroScene,
+  introOutroToFFmpegFilter,
+  INTRO_OUTRO_DEFAULT_PARAMS,
+} from './introOutroUtils'
 
 // ---------------------------------------------------------------------------
 // Context types passed to each handler
@@ -300,5 +306,24 @@ registerEffect({
   toFFmpegFilter(effect) {
     const { x, y, width, height } = computeCropRegion(effect)
     return `crop=${width}:${height}:${x}:${y}`
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Built-in effect: intro-outro (pre-designed title scene)
+// ---------------------------------------------------------------------------
+
+registerEffect({
+  type: 'intro-outro',
+  displayName: 'Intro / Outro',
+  defaultParams: { ...INTRO_OUTRO_DEFAULT_PARAMS },
+  render(renderCtx, effect) {
+    const { ctx, width, height } = renderCtx
+    const scene = computeIntroOutroScene(effect)
+    renderIntroOutroScene(ctx, scene, width, height)
+  },
+  toFFmpegFilter(effect, { width, height }) {
+    const scene = computeIntroOutroScene(effect)
+    return introOutroToFFmpegFilter(scene, width, height)
   },
 })

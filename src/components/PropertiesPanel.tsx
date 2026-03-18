@@ -23,6 +23,7 @@ import {
   computeShapeArrow,
 } from '@/components/shapeAnnotationUtils'
 import { computeCropRegion } from '@/components/cropUtils'
+import { INTRO_OUTRO_STYLES, computeIntroOutroScene } from '@/components/introOutroUtils'
 
 // ---------------------------------------------------------------------------
 // Blur effect parameter editor
@@ -1073,6 +1074,144 @@ function TransitionSection({ clipId }: { clipId: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Intro / Outro effect parameter editor
+// ---------------------------------------------------------------------------
+
+function IntroOutroEffectEditor({ clipId, effect }: { clipId: string; effect: Effect }) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const removeEffect = useEditorStore((s) => s.removeEffect)
+
+  const scene = computeIntroOutroScene(effect)
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#1a1a1a',
+    border: '1px solid #333',
+    color: '#fff',
+    borderRadius: '3px',
+    padding: '2px 4px',
+    fontSize: '11px',
+  }
+  const labelStyle: React.CSSProperties = { color: '#666', marginBottom: '1px', fontSize: '10px' }
+
+  return (
+    <div
+      style={{
+        marginBottom: '8px',
+        border: '1px solid #333',
+        borderRadius: '4px',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 8px',
+          background: '#2a2a2a',
+          fontSize: '11px',
+          color: '#aaa',
+        }}
+      >
+        <span>Intro / Outro</span>
+        <button
+          data-testid={`remove-intro-outro-${effect.id}`}
+          onClick={() => removeEffect(clipId, effect.id)}
+          title="Remove intro/outro"
+          style={{
+            background: 'transparent',
+            border: '1px solid #444',
+            color: '#888',
+            borderRadius: '3px',
+            cursor: 'pointer',
+            padding: '2px 5px',
+            fontSize: '12px',
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      <div style={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div>
+          <div style={labelStyle}>Style</div>
+          <select
+            data-testid={`intro-outro-style-${effect.id}`}
+            value={scene.style}
+            onChange={(e) => updateEffectParams(clipId, effect.id, { style: e.target.value })}
+            style={fieldStyle}
+          >
+            {INTRO_OUTRO_STYLES.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <div style={labelStyle}>Title</div>
+          <input
+            type="text"
+            data-testid={`intro-outro-title-${effect.id}`}
+            value={scene.title}
+            onChange={(e) => updateEffectParams(clipId, effect.id, { title: e.target.value })}
+            style={fieldStyle}
+          />
+        </div>
+
+        <div>
+          <div style={labelStyle}>Subtitle</div>
+          <input
+            type="text"
+            data-testid={`intro-outro-subtitle-${effect.id}`}
+            value={scene.subtitle}
+            onChange={(e) => updateEffectParams(clipId, effect.id, { subtitle: e.target.value })}
+            style={fieldStyle}
+          />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+          <div>
+            <div style={labelStyle}>Background</div>
+            <input
+              type="color"
+              data-testid={`intro-outro-bg-color-${effect.id}`}
+              value={scene.bgColor}
+              onChange={(e) => updateEffectParams(clipId, effect.id, { bgColor: e.target.value })}
+              style={{ ...fieldStyle, padding: '1px 2px', height: '24px', cursor: 'pointer' }}
+            />
+          </div>
+          <div>
+            <div style={labelStyle}>Text</div>
+            <input
+              type="color"
+              data-testid={`intro-outro-text-color-${effect.id}`}
+              value={scene.textColor}
+              onChange={(e) => updateEffectParams(clipId, effect.id, { textColor: e.target.value })}
+              style={{ ...fieldStyle, padding: '1px 2px', height: '24px', cursor: 'pointer' }}
+            />
+          </div>
+          <div>
+            <div style={labelStyle}>Accent</div>
+            <input
+              type="color"
+              data-testid={`intro-outro-accent-color-${effect.id}`}
+              value={scene.accentColor}
+              onChange={(e) =>
+                updateEffectParams(clipId, effect.id, { accentColor: e.target.value })
+              }
+              style={{ ...fieldStyle, padding: '1px 2px', height: '24px', cursor: 'pointer' }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Effects section (add / manage effects per clip)
 // ---------------------------------------------------------------------------
 
@@ -1123,19 +1262,27 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
     addEffect(clipId, { type: 'crop', params: { ...handler.defaultParams }, keyframes: [] })
   }
 
+  function handleAddIntroOutro() {
+    const handler = getEffectHandler('intro-outro')
+    if (!handler) return
+    addEffect(clipId, { type: 'intro-outro', params: { ...handler.defaultParams }, keyframes: [] })
+  }
+
   const blurEffects = effects.filter((e) => e.type === 'blur')
   const textEffects = effects.filter((e) => e.type === 'text')
   const rectEffects = effects.filter((e) => e.type === 'shape-rect')
   const circleEffects = effects.filter((e) => e.type === 'shape-circle')
   const arrowEffects = effects.filter((e) => e.type === 'shape-arrow')
   const cropEffects = effects.filter((e) => e.type === 'crop')
+  const introOutroEffects = effects.filter((e) => e.type === 'intro-outro')
   const hasEffects =
     blurEffects.length > 0 ||
     textEffects.length > 0 ||
     rectEffects.length > 0 ||
     circleEffects.length > 0 ||
     arrowEffects.length > 0 ||
-    cropEffects.length > 0
+    cropEffects.length > 0 ||
+    introOutroEffects.length > 0
 
   const btnStyle: React.CSSProperties = {
     fontSize: '11px',
@@ -1194,6 +1341,13 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
           <button data-testid="add-crop-effect" onClick={handleAddCrop} style={btnStyle}>
             + Crop
           </button>
+          <button
+            data-testid="add-intro-outro-effect"
+            onClick={handleAddIntroOutro}
+            style={btnStyle}
+          >
+            + Intro/Outro
+          </button>
         </div>
       </div>
 
@@ -1220,6 +1374,9 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
           ))}
           {cropEffects.map((e) => (
             <CropEffectEditor key={e.id} clipId={clipId} effect={e} />
+          ))}
+          {introOutroEffects.map((e) => (
+            <IntroOutroEffectEditor key={e.id} clipId={clipId} effect={e} />
           ))}
         </>
       )}
