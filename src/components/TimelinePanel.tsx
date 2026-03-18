@@ -2,7 +2,14 @@ import { useRef, useCallback, useEffect, useState } from 'react'
 import { Stage, Layer } from 'react-konva'
 import { useEditorStore } from '@/store'
 import type { TrackType } from '@/store/types'
-import { zoomAroundPoint, RULER_HEIGHT, TRACK_HEADER_WIDTH, getTracksHeight } from './timelineUtils'
+import {
+  zoomAroundPoint,
+  RULER_HEIGHT,
+  TRACK_HEIGHT,
+  TRACK_HEADER_WIDTH,
+  getTracksHeight,
+} from './timelineUtils'
+import { DRAG_ASSET_TYPE } from './mediaBinUtils'
 import { getClipBoundaryTimes, snapTime, SNAP_THRESHOLD_SEC } from './playheadUtils'
 import { getSplitCandidates } from './splitUtils'
 import TimeRuler from './TimeRuler'
@@ -38,6 +45,7 @@ export default function TimelinePanel() {
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime)
   const splitClip = useEditorStore((s) => s.splitClip)
   const removeClips = useEditorStore((s) => s.removeClips)
+  const addClip = useEditorStore((s) => s.addClip)
 
   useEffect(() => {
     const el = containerRef.current
@@ -93,6 +101,65 @@ export default function TimelinePanel() {
       removeClips(selectedClipIds)
     }
   }, [selectedClipIds, removeClips])
+
+  const handleTimelineDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (e.dataTransfer.types.includes(DRAG_ASSET_TYPE)) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+    }
+  }, [])
+
+  const handleTimelineDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      const assetId = e.dataTransfer.getData(DRAG_ASSET_TYPE)
+      if (!assetId) return
+      e.preventDefault()
+
+      const storeState = useEditorStore.getState()
+      const asset = storeState.project.mediaAssets.find((a) => a.id === assetId)
+      if (!asset) return
+
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      const relX = e.clientX - rect.left
+      const relY = e.clientY - rect.top
+
+      const timelineX = relX - TRACK_HEADER_WIDTH + storeState.ui.scrollLeft
+      const startTime = Math.max(0, timelineX / storeState.ui.pixelsPerSecond)
+
+      const trackAreaY = relY - RULER_HEIGHT
+      const dropTrackIndex = trackAreaY >= 0 ? Math.floor(trackAreaY / TRACK_HEIGHT) : 0
+
+      const targetType = asset.type === 'audio' ? 'audio' : 'video'
+      const currentTracks = storeState.project.tracks
+
+      let targetTrackId: string
+      if (dropTrackIndex >= 0 && dropTrackIndex < currentTracks.length) {
+        targetTrackId = currentTracks[dropTrackIndex].id
+      } else {
+        const match = currentTracks.find((t) => t.type === targetType)
+        if (match) {
+          targetTrackId = match.id
+        } else {
+          addTrack(targetType)
+          targetTrackId = useEditorStore.getState().project.tracks.slice(-1)[0].id
+        }
+      }
+
+      const duration = asset.duration > 0 ? asset.duration : 5
+      addClip(targetTrackId, {
+        sourceId: asset.id,
+        startTime,
+        duration,
+        sourceIn: 0,
+        sourceOut: asset.duration,
+        speed: 1,
+        effects: [],
+      })
+    },
+    [addTrack, addClip],
+  )
 
   const tracksHeight = getTracksHeight(tracks.length)
   const stageHeight = Math.max(size.height, RULER_HEIGHT + tracksHeight)
@@ -159,6 +226,8 @@ export default function TimelinePanel() {
         ref={containerRef}
         className="panel-body"
         onWheel={handleWheel}
+        onDragOver={handleTimelineDragOver}
+        onDrop={handleTimelineDrop}
         style={{ overflow: 'hidden', position: 'relative' }}
       >
         {/* Konva canvas: ruler + track lane backgrounds */}
