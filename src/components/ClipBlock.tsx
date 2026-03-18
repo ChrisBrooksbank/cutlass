@@ -178,17 +178,18 @@ export default function ClipBlock({
       currentDuration: clip.duration,
     }
 
-    // Capture clip.speed, allTracks, currentTime in closure so they stay consistent throughout the drag
+    // Capture clip.speed, allTracks, currentTime, pixelsPerSecond in closure so they stay consistent throughout the drag
     const speed = clip.speed
     const capturedTracks = allTracks
     const capturedCurrentTime = currentTime
+    const capturedPps = pixelsPerSecond
 
     function onMouseMove() {
       const p = safeStage.getPointerPosition()
       if (!p || !trimRef.current) return
 
       const deltaX = p.x - trimRef.current.startX
-      const deltaTime = deltaX / pixelsPerSecond
+      const deltaTime = deltaX / capturedPps
       const snapTargets = getSnapTargetsExcluding(capturedTracks, clip.id, capturedCurrentTime)
 
       if (side === 'left') {
@@ -202,10 +203,16 @@ export default function ClipBlock({
         const originalRightEdge =
           trimRef.current.originalStartTime + trimRef.current.originalDuration
         const snappedStartTime = snapTime(result.startTime, snapTargets, SNAP_THRESHOLD_SEC)
-        const snappedDuration = Math.max(MIN_CLIP_DURATION, originalRightEdge - snappedStartTime)
-        trimRef.current.currentStartTime = snappedStartTime
+        // Re-clamp after snapping to prevent sourceIn from going negative
+        const maxLeftShift = trimRef.current.originalSourceIn / speed
+        const clampedStartTime = Math.max(
+          trimRef.current.originalStartTime - maxLeftShift,
+          snappedStartTime,
+        )
+        const snappedDuration = Math.max(MIN_CLIP_DURATION, originalRightEdge - clampedStartTime)
+        trimRef.current.currentStartTime = clampedStartTime
         trimRef.current.currentDuration = snappedDuration
-        setTrimPreview({ startTime: snappedStartTime, duration: snappedDuration })
+        setTrimPreview({ startTime: clampedStartTime, duration: snappedDuration })
       } else {
         const result = computeTrimRight(
           trimRef.current.originalDuration,
@@ -220,10 +227,16 @@ export default function ClipBlock({
           MIN_CLIP_DURATION,
           snappedEndTime - trimRef.current.originalStartTime,
         )
-        trimRef.current.currentDuration = snappedDuration
+        // Re-clamp after snapping to prevent sourceOut from exceeding media duration
+        const maxDurationDelta = (mediaDuration - trimRef.current.originalSourceOut) / speed
+        const clampedDuration = Math.min(
+          trimRef.current.originalDuration + maxDurationDelta,
+          snappedDuration,
+        )
+        trimRef.current.currentDuration = clampedDuration
         setTrimPreview({
           startTime: trimRef.current.originalStartTime,
-          duration: snappedDuration,
+          duration: clampedDuration,
         })
       }
     }

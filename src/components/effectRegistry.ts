@@ -18,6 +18,16 @@ import {
   INTRO_OUTRO_DEFAULT_PARAMS,
 } from './introOutroUtils'
 
+/** Expand a 3-digit hex (e.g. '#fff') to 6-digit ('0xffffff'), or convert 6-digit '#rrggbb' to '0xrrggbb'. */
+function hexToFFmpegColor(hex: string): string {
+  const h = hex.startsWith('#') ? hex.slice(1) : hex
+  if (h.length === 3) {
+    const expanded = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]
+    return `0x${expanded}`
+  }
+  return `0x${h}`
+}
+
 // ---------------------------------------------------------------------------
 // Context types passed to each handler
 // ---------------------------------------------------------------------------
@@ -134,17 +144,11 @@ registerEffect({
     const region = computeBlurRegion(effect, clipTime)
     renderBlurRegion(ctx, region)
   },
-  toFFmpegFilter(effect) {
-    const bx = (effect.params.x as number | undefined) ?? 0
-    const by = (effect.params.y as number | undefined) ?? 0
-    const bw = (effect.params.width as number | undefined) ?? 100
-    const bh = (effect.params.height as number | undefined) ?? 60
-    const strength = (effect.params.strength as number | undefined) ?? 10
+  toFFmpegFilter() {
     // Region-specific blur requires a split/crop/blur/overlay pipeline which
-    // can't be expressed as a single filter string. Return null for now.
-    // TODO: support multi-stream effect filters in the filter graph builder
-    void bx; void by; void bw; void bh
-    return `boxblur=luma_radius=${strength}:luma_power=1`
+    // cannot be expressed as a single filter in the current filter graph builder.
+    // Returning null so this effect is reported as canvas-only in the export dialog.
+    return null
   },
 })
 
@@ -207,7 +211,7 @@ registerEffect({
     const x = (effect.params.x as number | undefined) ?? 50
     const y = (effect.params.y as number | undefined) ?? 50
     const fontSize = (effect.params.fontSize as number | undefined) ?? 32
-    const color = ((effect.params.color as string | undefined) ?? '#ffffff').replace('#', '0x')
+    const color = hexToFFmpegColor((effect.params.color as string | undefined) ?? '#ffffff')
     const fontFamily = ((effect.params.fontFamily as string | undefined) ?? 'sans-serif').replace(/'/g, "\\'")
     return `drawtext=text='${text}':x=${x}:y=${y}:fontsize=${fontSize}:fontcolor=${color}:fontfamily='${fontFamily}'`
   },

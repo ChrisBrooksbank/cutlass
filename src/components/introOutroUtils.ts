@@ -224,17 +224,48 @@ export function introOutroToFFmpegFilter(
 ): string {
   const bgHex = scene.bgColor.replace('#', '')
   const fgHex = scene.textColor.replace('#', '')
+  const accentHex = scene.accentColor.replace('#', '')
   const titleEsc = scene.title.replace(/'/g, "\\'")
   const subtitleEsc = scene.subtitle.replace(/'/g, "\\'")
 
-  const titleSize = Math.round(height * 0.08)
-  const subtitleSize = Math.round(height * 0.035)
-  const titleY = Math.round(height * 0.42)
-  const subtitleY = Math.round(height * 0.58)
-
-  return [
-    `color=c=0x${bgHex}:size=${width}x${height}`,
-    `drawtext=text='${titleEsc}':x=(w-text_w)/2:y=${titleY}:fontsize=${titleSize}:fontcolor=0x${fgHex}`,
-    `drawtext=text='${subtitleEsc}':x=(w-text_w)/2:y=${subtitleY}:fontsize=${subtitleSize}:fontcolor=0x${fgHex}`,
-  ].join(',')
+  switch (scene.style) {
+    case 'gradient': {
+      const titleSize = Math.round(height * 0.09)
+      const subtitleSize = Math.round(height * 0.035)
+      // Canvas uses textBaseline='bottom' at 0.44*h
+      const titleY = Math.round(height * 0.44) - titleSize
+      const subtitleY = Math.round(height * 0.58)
+      return [
+        `color=c=0x${bgHex}:size=${width}x${height}`,
+        `drawtext=text='${titleEsc}':x=(w-text_w)/2:y=${titleY}:fontsize=${titleSize}:fontcolor=0x${fgHex}`,
+        `drawtext=text='${subtitleEsc}':x=(w-text_w)/2:y=${subtitleY}:fontsize=${subtitleSize}:fontcolor=0x${fgHex}`,
+      ].join(',')
+    }
+    case 'minimal': {
+      const titleSize = Math.round(height * 0.07)
+      const subtitleSize = Math.round(height * 0.03)
+      // Canvas uses textBaseline='bottom' at cy - 4
+      const cy = Math.round(height / 2)
+      const titleY = cy - 4 - titleSize
+      const subtitleY = cy + 12
+      return [
+        `color=c=0x${bgHex}:size=${width}x${height}`,
+        `drawtext=text='${titleEsc}':x=(w-text_w)/2:y=${titleY}:fontsize=${titleSize}:fontcolor=0x${fgHex}`,
+        `drawtext=text='${subtitleEsc.toUpperCase()}':x=(w-text_w)/2:y=${subtitleY}:fontsize=${subtitleSize}:fontcolor=0x${accentHex}`,
+      ].join(',')
+    }
+    case 'simple':
+    default: {
+      const titleSize = Math.round(height * 0.08)
+      const subtitleSize = Math.round(height * 0.035)
+      // Canvas uses textBaseline='bottom' at 0.42*h, so subtract title height
+      const titleY = Math.round(height * 0.42) - titleSize
+      const subtitleY = Math.round(height * 0.58)
+      return [
+        `color=c=0x${bgHex}:size=${width}x${height}`,
+        `drawtext=text='${titleEsc}':x=(w-text_w)/2:y=${titleY}:fontsize=${titleSize}:fontcolor=0x${fgHex}`,
+        `drawtext=text='${subtitleEsc}':x=(w-text_w)/2:y=${subtitleY}:fontsize=${subtitleSize}:fontcolor=0x${fgHex}`,
+      ].join(',')
+    }
+  }
 }

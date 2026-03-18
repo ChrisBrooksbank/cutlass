@@ -201,11 +201,13 @@ export interface CursorTracker {
 export function createCursorTracker(
   target: EventTarget = typeof document !== 'undefined' ? document : globalThis,
 ): CursorTracker {
-  const points: CursorPoint[] = []
+  let points: CursorPoint[] = []
   let recordingStartMs = 0
   let pauseStartMs = 0
   let totalPausedMs = 0
   let active = false
+  let paused = false
+  let listenerAttached = false
 
   function onPointerMove(event: Event): void {
     if (!active) return
@@ -214,25 +216,37 @@ export function createCursorTracker(
     points.push({ t, x: e.clientX, y: e.clientY })
   }
 
-  target.addEventListener('pointermove', onPointerMove)
-
   return {
     start() {
+      points = []
       recordingStartMs = performance.now()
       totalPausedMs = 0
+      pauseStartMs = 0
+      paused = false
       active = true
+      if (!listenerAttached) {
+        target.addEventListener('pointermove', onPointerMove)
+        listenerAttached = true
+      }
     },
     pause() {
       active = false
+      paused = true
       pauseStartMs = performance.now()
     },
     resume() {
+      if (!paused) return
       totalPausedMs += performance.now() - pauseStartMs
+      paused = false
       active = true
     },
     stop() {
       active = false
-      target.removeEventListener('pointermove', onPointerMove)
+      paused = false
+      if (listenerAttached) {
+        target.removeEventListener('pointermove', onPointerMove)
+        listenerAttached = false
+      }
       return [...points]
     },
   }

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { Group, Line, Rect } from 'react-konva'
 import type Konva from 'konva'
 import type { Track } from '@/store/types'
@@ -28,6 +28,14 @@ export default function Playhead({
   onSeek,
 }: PlayheadProps) {
   const isDragging = useRef(false)
+  // Keep refs that always reflect the latest prop values for use during drag
+  const ppsRef = useRef(pixelsPerSecond)
+  const scrollLeftRef = useRef(scrollLeft)
+  const tracksRef = useRef(tracks)
+  useEffect(() => { ppsRef.current = pixelsPerSecond }, [pixelsPerSecond])
+  useEffect(() => { scrollLeftRef.current = scrollLeft }, [scrollLeft])
+  useEffect(() => { tracksRef.current = tracks }, [tracks])
+
   const x = TRACK_HEADER_WIDTH + currentTime * pixelsPerSecond - scrollLeft
 
   function startDrag(e: Konva.KonvaEventObject<MouseEvent>) {
@@ -40,16 +48,11 @@ export default function Playhead({
     isDragging.current = true
     safeStage.container().style.cursor = 'ew-resize'
 
-    // Capture zoom/scroll/tracks state at drag start to avoid stale closures
-    const capturedPps = pixelsPerSecond
-    const capturedScrollLeft = scrollLeft
-    const capturedTracks = tracks
-
     function onMouseMove() {
       const pos = safeStage.getPointerPosition()
       if (!pos) return
-      const rawTime = Math.max(0, (pos.x - TRACK_HEADER_WIDTH + capturedScrollLeft) / capturedPps)
-      const boundaries = getClipBoundaryTimes(capturedTracks)
+      const rawTime = Math.max(0, (pos.x - TRACK_HEADER_WIDTH + scrollLeftRef.current) / ppsRef.current)
+      const boundaries = getClipBoundaryTimes(tracksRef.current)
       const time = snapTime(rawTime, boundaries, SNAP_THRESHOLD_SEC)
       onSeek(time)
     }

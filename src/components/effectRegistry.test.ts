@@ -136,14 +136,13 @@ describe('blur handler', () => {
     ).not.toThrow()
   })
 
-  it('toFFmpegFilter returns a boxblur filter string', () => {
+  it('toFFmpegFilter returns null (canvas-only effect)', () => {
     const h = getEffectHandler('blur')!
     const filter = h.toFFmpegFilter(
       makeEffect('blur', { x: 0, y: 0, width: 100, height: 60, strength: 10 }),
       baseExportCtx,
     )
-    expect(filter).not.toBeNull()
-    expect(filter).toContain('boxblur')
+    expect(filter).toBeNull()
   })
 })
 

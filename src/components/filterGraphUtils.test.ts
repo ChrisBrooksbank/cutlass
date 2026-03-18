@@ -363,7 +363,7 @@ describe('buildFFmpegArgs', () => {
     const args = buildFFmpegArgs(project)
     expect(args.inputs).toEqual([])
     expect(args.filterComplex).toBe('')
-    expect(args.videoMap).toBe('0:v')
+    expect(args.videoMap).toBe('')
     expect(args.audioMap).toBeNull()
   })
 

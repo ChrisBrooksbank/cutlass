@@ -1,6 +1,11 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
 import type { ExportFormat, ResolutionPreset } from '@/components/exportFormatUtils'
-import { FORMAT_LABELS, getFormatCodecArgs, getFormatMimeType } from '@/components/exportFormatUtils'
+import {
+  FORMAT_LABELS,
+  RESOLUTION_PRESETS as RESOLUTION_PRESET_VALUES,
+  getFormatCodecArgs,
+  getFormatMimeType,
+} from '@/components/exportFormatUtils'
 import type { QualityPreset } from '@/components/exportDialogUtils'
 import {
   QUALITY_PRESETS,
@@ -41,7 +46,7 @@ type ExportStatus = 'idle' | 'loading' | 'exporting' | 'done' | 'error'
 // Canvas-only effect detection
 // ---------------------------------------------------------------------------
 
-const CANVAS_ONLY_EFFECTS = new Set(['cursor', 'shape-circle', 'shape-arrow'])
+const CANVAS_ONLY_EFFECTS = new Set(['cursor', 'shape-circle', 'shape-arrow', 'blur'])
 
 function detectCanvasOnlyEffects(project: { tracks: { clips: { effects: { type: string }[] }[] }[] }): string[] {
   const found = new Set<string>()
@@ -222,6 +227,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
   const [progress, setProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const abortRef = useRef(false)
+  const ffmpegRef = useRef<Awaited<ReturnType<typeof loadFFmpeg>> | null>(null)
 
   const project = useEditorStore((s) => s.project)
 
@@ -252,6 +258,8 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           }
         },
       })
+
+      ffmpegRef.current = ffmpeg
 
       if (abortRef.current) return
 
@@ -326,8 +334,16 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           args.push('-map', ffmpegArgs.audioMap)
         }
 
-        // Codec args
-        const codecArgs = getFormatCodecArgs(format)
+        // Scale to target resolution
+        const targetRes =
+          preset === 'custom'
+            ? { width: customWidth, height: customHeight }
+            : RESOLUTION_PRESET_VALUES[preset]
+        args.push('-vf', `scale=${targetRes.width}:${targetRes.height}`)
+
+        // Codec args with quality preset CRF
+        const qp = QUALITY_PRESETS[quality]
+        const codecArgs = getFormatCodecArgs(format, qp.crfH264, qp.crfVP9)
         args.push(...codecArgs)
 
         // Duration limit
@@ -356,11 +372,20 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
       setErrorMessage(msg)
       setExportStatus('error')
     }
-  }, [exportType, format, filename, project, durationSec, gifFps, gifWidth])
+  }, [exportType, format, filename, project, durationSec, gifFps, gifWidth, quality, preset, customWidth, customHeight])
 
   const handleCancel = useCallback(() => {
     if (isExporting) {
       abortRef.current = true
+      // Terminate the running FFmpeg process to free resources
+      if (ffmpegRef.current) {
+        try {
+          ffmpegRef.current.terminate()
+        } catch {
+          // Already terminated
+        }
+        ffmpegRef.current = null
+      }
       setExportStatus('idle')
       setProgress(0)
     } else {

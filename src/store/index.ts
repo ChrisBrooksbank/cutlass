@@ -421,6 +421,7 @@ export const useEditorStore = create<EditorStore>()(
           id: leftId,
           duration: leftDuration,
           sourceOut: splitSourceTime,
+          transitionOut: undefined,
         }
         const rightClip: Clip = {
           ...clip,
@@ -466,12 +467,30 @@ export const useEditorStore = create<EditorStore>()(
       },
 
       removeMediaAsset: (assetId) => {
-        set((state) => ({
-          project: {
-            ...state.project,
-            mediaAssets: state.project.mediaAssets.filter((a) => a.id !== assetId),
-          },
-        }))
+        set((state) => {
+          const orphanedClipIds = new Set<string>()
+          for (const track of state.project.tracks) {
+            for (const clip of track.clips) {
+              if (clip.sourceId === assetId) orphanedClipIds.add(clip.id)
+            }
+          }
+          return {
+            project: {
+              ...state.project,
+              mediaAssets: state.project.mediaAssets.filter((a) => a.id !== assetId),
+              tracks: state.project.tracks.map((t) => ({
+                ...t,
+                clips: t.clips.filter((c) => c.sourceId !== assetId),
+              })),
+            },
+            selection: {
+              ...state.selection,
+              selectedClipIds: state.selection.selectedClipIds.filter(
+                (id) => !orphanedClipIds.has(id),
+              ),
+            },
+          }
+        })
       },
 
       // --- Playback ---
@@ -507,7 +526,7 @@ export const useEditorStore = create<EditorStore>()(
       },
 
       clearSelection: () => {
-        set({ selection: DEFAULT_SELECTION })
+        set({ selection: { selectedClipIds: [], selectedTrackId: null } })
       },
 
       // --- Transitions ---

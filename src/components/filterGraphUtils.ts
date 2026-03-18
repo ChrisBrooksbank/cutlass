@@ -267,7 +267,7 @@ export function buildFFmpegArgs(project: ProjectState): FFmpegArgs {
   }
 
   if (inputs.length === 0) {
-    return { inputs: [], filterComplex: '', videoMap: '0:v', audioMap: null }
+    return { inputs: [], filterComplex: '', videoMap: '', audioMap: null }
   }
 
   const fragments: string[] = []
@@ -357,9 +357,19 @@ export function buildFFmpegArgs(project: ProjectState): FFmpegArgs {
   } else if (positionedVideoLabels.length === 1) {
     videoMap = `[${positionedVideoLabels[0]}]`
   } else {
+    // Compute total project duration for the base canvas
+    let totalDuration = 0
+    for (const track of project.tracks) {
+      for (const clip of track.clips) {
+        const end = clip.startTime + clip.duration
+        if (end > totalDuration) totalDuration = end
+      }
+    }
+    const baseDuration = Math.max(1, Math.ceil(totalDuration))
+
     const baseLabel = 'vbase'
     fragments.push(
-      `color=black:size=${project.width}x${project.height}:rate=${project.fps}:d=0[${baseLabel}]`,
+      `color=black:size=${project.width}x${project.height}:rate=${project.fps}:d=${baseDuration}[${baseLabel}]`,
     )
     let current = baseLabel
     for (let i = 0; i < positionedVideoLabels.length; i++) {

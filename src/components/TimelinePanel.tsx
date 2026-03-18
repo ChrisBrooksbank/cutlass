@@ -154,7 +154,7 @@ export default function TimelinePanel() {
         startTime,
         duration,
         sourceIn: 0,
-        sourceOut: asset.duration,
+        sourceOut: duration,
         speed: 1,
         effects: [],
       })

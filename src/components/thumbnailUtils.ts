@@ -36,7 +36,7 @@ export function extractVideoThumbnail(
   width = 160,
   height = 90,
 ): Promise<string> {
-  const cacheKey = `${url}@${seekTime}`
+  const cacheKey = `${url}@${seekTime}@${width}x${height}`
   const cached = thumbnailCache.get(cacheKey)
   if (cached !== undefined) return Promise.resolve(cached)
 
@@ -45,29 +45,58 @@ export function extractVideoThumbnail(
     video.preload = 'metadata'
     video.muted = true
     video.playsInline = true
+    let settled = false
+
+    const cleanup = () => {
+      video.onloadedmetadata = null
+      video.onseeked = null
+      video.onerror = null
+      video.removeAttribute('src')
+      video.load()
+    }
+
+    // Timeout to prevent hanging promises (e.g. when seeking to time 0)
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        cleanup()
+        reject(new Error(`Thumbnail extraction timed out for: ${url}`))
+      }
+    }, 10000)
 
     video.onloadedmetadata = () => {
       // Clamp seek time to valid range
       const clampedTime = Math.min(Math.max(0, seekTime), video.duration)
-      video.currentTime = clampedTime
+      // If already at the target time (e.g. seeking to 0), fire onseeked manually
+      if (video.currentTime === clampedTime) {
+        video.dispatchEvent(new Event('seeked'))
+      } else {
+        video.currentTime = clampedTime
+      }
     }
 
     video.onseeked = () => {
       const draw = () => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
         try {
           const canvas = document.createElement('canvas') as HTMLCanvasElement
           canvas.width = width
           canvas.height = height
           const ctx = canvas.getContext('2d')
           if (!ctx) {
+            cleanup()
             reject(new Error('Could not get 2d canvas context'))
             return
           }
           ctx.drawImage(video, 0, 0, width, height)
           const dataUrl = canvas.toDataURL('image/jpeg')
           thumbnailCache.set(cacheKey, dataUrl)
+          cleanup()
           resolve(dataUrl)
         } catch (err) {
+          cleanup()
           reject(err)
         }
       }
@@ -82,7 +111,14 @@ export function extractVideoThumbnail(
       }
     }
 
-    video.onerror = () => reject(new Error(`Failed to load video: ${url}`))
+    video.onerror = () => {
+      if (!settled) {
+        settled = true
+        clearTimeout(timer)
+        cleanup()
+        reject(new Error(`Failed to load video: ${url}`))
+      }
+    }
 
     video.src = url
   })

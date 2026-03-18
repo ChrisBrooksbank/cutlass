@@ -659,6 +659,7 @@ export default function PreviewPanel() {
   const lastWallRef = useRef<number | null>(null)
   const currentAssetRef = useRef<MediaAsset | null>(null)
   const incomingAssetRef = useRef<MediaAsset | null>(null)
+  const activeClipIdRef = useRef<string | null>(null)
   const [showExportDialog, setShowExportDialog] = useState(false)
 
   const tracks = useEditorStore((s) => s.project.tracks)
@@ -759,6 +760,7 @@ export default function PreviewPanel() {
     const video = videoRef.current
     if (isPlaying) {
       if (video && activeClip) {
+        activeClipIdRef.current = activeClip.id
         const src = sourceTimeForClip(activeClip, currentTime)
         video.currentTime = src
         video.playbackRate = activeClip.speed
@@ -782,6 +784,24 @@ export default function PreviewPanel() {
             return
           }
           setCurrentTime(newTime)
+
+          // Check if the active clip has changed (crossed a clip boundary)
+          const nowClip = findActiveVideoClip(state.project.tracks, newTime)
+          if (nowClip?.id !== activeClipIdRef.current) {
+            activeClipIdRef.current = nowClip?.id ?? null
+            const v = videoRef.current
+            if (v && nowClip) {
+              const asset = state.project.mediaAssets.find((a) => a.id === nowClip.sourceId)
+              if (asset && asset.url !== v.src) {
+                v.src = asset.url
+                v.load()
+              }
+              const srcTime = sourceTimeForClip(nowClip, newTime)
+              v.currentTime = srcTime
+              v.playbackRate = nowClip.speed
+              v.play().catch(() => {})
+            }
+          }
         }
         rafRef.current = requestAnimationFrame(tick)
       }
@@ -793,6 +813,7 @@ export default function PreviewPanel() {
         rafRef.current = null
       }
       lastWallRef.current = null
+      activeClipIdRef.current = null
       video?.pause()
     }
 

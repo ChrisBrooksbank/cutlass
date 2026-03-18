@@ -14,6 +14,14 @@ function makeFakeVideo(opts: { failLoad?: boolean; duration?: number } = {}) {
     onloadedmetadata: null as (() => void) | null,
     onseeked: null as (() => void) | null,
     onerror: null as (() => void) | null,
+    removeAttribute: vi.fn(),
+    load: vi.fn(),
+    dispatchEvent: vi.fn((event: Event) => {
+      if (event.type === 'seeked' && video.onseeked) {
+        Promise.resolve().then(() => video.onseeked?.())
+      }
+      return true
+    }),
   }
 
   // Simulate seek completion synchronously after currentTime is set

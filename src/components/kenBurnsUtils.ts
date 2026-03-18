@@ -17,7 +17,7 @@ export interface KenBurnsTransform {
 // ---------------------------------------------------------------------------
 
 function getChannel(effect: Effect, channel: string) {
-  return effect.keyframes.filter((k) => (k as { channel?: string }).channel === channel)
+  return effect.keyframes.filter((k) => k.channel === channel)
 }
 
 // ---------------------------------------------------------------------------

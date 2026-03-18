@@ -17,6 +17,8 @@ export interface Keyframe {
   time: number // seconds relative to clip start
   value: number
   easing: EasingType
+  /** Optional channel name for multi-property keyframing (e.g. 'x', 'y', 'scaleX'). */
+  channel?: string
 }
 
 export interface Effect {
