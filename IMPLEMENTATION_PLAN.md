@@ -89,7 +89,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 - [x] Export progress UI: percentage bar parsed from FFmpeg stderr; cancel export mid-process (spec: export.md)
 - [x] GIF export: two-pass palettegen + paletteuse pipeline with configurable FPS and width (spec: export.md)
 - [x] Thumbnail generation: seek to user-selected frame, export PNG via canvas.toDataURL (spec: export.md)
-- [ ] Export dialog: format, resolution, quality preset, estimated file size, download trigger (spec: export.md)
+- [x] Export dialog: format, resolution, quality preset, estimated file size, download trigger (spec: export.md)
 
 ---
 

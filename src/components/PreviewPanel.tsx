@@ -7,6 +7,7 @@ import {
   projectDuration,
   formatTime,
 } from '@/components/previewUtils'
+import ExportDialog from '@/components/ExportDialog'
 import {
   findTransitionAtTime,
   incomingSourceTime,
@@ -658,6 +659,7 @@ export default function PreviewPanel() {
   const lastWallRef = useRef<number | null>(null)
   const currentAssetRef = useRef<MediaAsset | null>(null)
   const incomingAssetRef = useRef<MediaAsset | null>(null)
+  const [showExportDialog, setShowExportDialog] = useState(false)
 
   const tracks = useEditorStore((s) => s.project.tracks)
   const mediaAssets = useEditorStore((s) => s.project.mediaAssets)
@@ -947,8 +949,31 @@ export default function PreviewPanel() {
           >
             Save Thumbnail
           </button>
+          <button
+            onClick={() => setShowExportDialog(true)}
+            aria-label="Export video"
+            data-testid="export-btn"
+            title="Export project"
+            style={{
+              background: '#2563eb',
+              border: 'none',
+              color: '#fff',
+              borderRadius: '4px',
+              padding: '2px 10px',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Export
+          </button>
         </div>
       </div>
+      {showExportDialog && (
+        <ExportDialog
+          durationSec={projectDuration(tracks)}
+          onClose={() => setShowExportDialog(false)}
+        />
+      )}
     </div>
   )
 }
