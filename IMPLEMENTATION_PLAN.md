@@ -77,7 +77,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 - [x] Cursor highlight overlay: replay captured cursor data as animated circle/spotlight on preview canvas (spec: effects-annotations.md)
 - [x] Text overlays: place text on preview canvas, edit font/size/color/position (spec: effects-annotations.md)
 - [x] Shape annotations: arrows, rectangles, circles on annotation layer (spec: effects-annotations.md)
-- [ ] Clip transitions: cross-dissolve, fade-to-black, wipe with handles on clip edges in timeline (spec: effects-annotations.md)
+- [x] Clip transitions: cross-dissolve, fade-to-black, wipe with handles on clip edges in timeline (spec: effects-annotations.md)
 - [ ] Crop per clip: adjust visible region in properties panel (spec: effects-annotations.md)
 - [ ] Intro/outro templates: pre-designed scenes with editable text and colors (spec: effects-annotations.md)
 

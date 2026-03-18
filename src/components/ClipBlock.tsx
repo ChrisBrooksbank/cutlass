@@ -372,6 +372,40 @@ export default function ClipBlock({
         />
       )}
 
+      {/* Transition-out indicator: diagonal stripe on right edge */}
+      {clip.transitionOut && innerW > 8 && (
+        <Group
+          x={CLIP_PADDING}
+          y={CLIP_PADDING}
+          clipFunc={(ctx) => {
+            const r = CLIP_CORNER_RADIUS
+            ctx.beginPath()
+            ctx.moveTo(r, 0)
+            ctx.lineTo(innerW - r, 0)
+            ctx.arcTo(innerW, 0, innerW, r, r)
+            ctx.lineTo(innerW, innerH - r)
+            ctx.arcTo(innerW, innerH, innerW - r, innerH, r)
+            ctx.lineTo(r, innerH)
+            ctx.arcTo(0, innerH, 0, innerH - r, r)
+            ctx.lineTo(0, r)
+            ctx.arcTo(0, 0, r, 0, r)
+            ctx.closePath()
+          }}
+          listening={false}
+        >
+          {/* Gradient fade on right edge to indicate transition */}
+          <Rect
+            x={Math.max(0, innerW - 16)}
+            y={0}
+            width={16}
+            height={innerH}
+            fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+            fillLinearGradientEndPoint={{ x: 16, y: 0 }}
+            fillLinearGradientColorStops={[0, 'rgba(255,255,255,0)', 1, 'rgba(255,255,255,0.55)']}
+          />
+        </Group>
+      )}
+
       {/* Left trim handle */}
       {!track.locked && (
         <Rect

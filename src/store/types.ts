@@ -1,5 +1,13 @@
 export type TrackType = 'video' | 'audio' | 'annotation'
 
+export type TransitionType = 'cross-dissolve' | 'fade-to-black' | 'wipe-left'
+
+export interface ClipTransition {
+  type: TransitionType
+  /** Duration in seconds (0.1 – 3.0) */
+  duration: number
+}
+
 export type EasingType = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
 
 export type MediaAssetType = 'video' | 'audio' | 'image'
@@ -28,6 +36,8 @@ export interface Clip {
   sourceOut: number // out point in source media (seconds)
   speed: number // 0.25–4
   effects: Effect[]
+  /** Transition applied at the end of this clip (leading into the next clip on the same track) */
+  transitionOut?: ClipTransition
 }
 
 export interface Track {

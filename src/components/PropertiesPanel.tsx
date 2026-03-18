@@ -1,5 +1,12 @@
 import { useEditorStore } from '@/store'
-import type { EasingType, Effect } from '@/store'
+import type { EasingType, Effect, TransitionType } from '@/store'
+import {
+  TRANSITION_TYPE_OPTIONS,
+  TRANSITION_DURATION_MIN,
+  TRANSITION_DURATION_MAX,
+  TRANSITION_DURATION_DEFAULT,
+  clampTransitionDuration,
+} from '@/components/transitionUtils'
 import { SPEED_PRESETS, SPEED_MIN, SPEED_MAX, formatSpeed } from '@/components/speedUtils'
 import {
   EASING_OPTIONS,
@@ -803,6 +810,137 @@ function ShapeArrowEditor({ clipId, effect }: { clipId: string; effect: Effect }
 }
 
 // ---------------------------------------------------------------------------
+// Transition section (add / edit / remove transition at clip end)
+// ---------------------------------------------------------------------------
+
+function TransitionSection({ clipId }: { clipId: string }) {
+  const tracks = useEditorStore((s) => s.project.tracks)
+  const setClipTransition = useEditorStore((s) => s.setClipTransition)
+
+  const clip = tracks.flatMap((t) => t.clips).find((c) => c.id === clipId)
+  if (!clip) return null
+
+  const transition = clip.transitionOut ?? null
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#1a1a1a',
+    border: '1px solid #333',
+    color: '#fff',
+    borderRadius: '3px',
+    padding: '2px 4px',
+    fontSize: '11px',
+  }
+  const labelStyle: React.CSSProperties = { color: '#666', marginBottom: '1px', fontSize: '10px' }
+
+  function handleToggle() {
+    if (transition) {
+      setClipTransition(clipId, null)
+    } else {
+      setClipTransition(clipId, { type: 'cross-dissolve', duration: TRANSITION_DURATION_DEFAULT })
+    }
+  }
+
+  function handleTypeChange(type: TransitionType) {
+    setClipTransition(clipId, {
+      type,
+      duration: transition?.duration ?? TRANSITION_DURATION_DEFAULT,
+    })
+  }
+
+  function handleDurationChange(raw: number) {
+    const duration = clampTransitionDuration(raw)
+    setClipTransition(clipId, { type: transition!.type, duration })
+  }
+
+  return (
+    <div style={{ marginBottom: '12px' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '8px',
+        }}
+      >
+        <div
+          style={{
+            fontSize: '11px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            color: '#888',
+          }}
+        >
+          Transition (out)
+        </div>
+        <button
+          data-testid="toggle-transition"
+          onClick={handleToggle}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            background: transition ? '#444' : '#333',
+            border: '1px solid #555',
+            color: transition ? '#fff' : '#ccc',
+            borderRadius: '3px',
+            cursor: 'pointer',
+          }}
+        >
+          {transition ? 'Remove' : '+ Add'}
+        </button>
+      </div>
+
+      {transition && (
+        <div
+          style={{
+            border: '1px solid #333',
+            borderRadius: '4px',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{ padding: '6px 8px', display: 'grid', gridTemplateColumns: '1fr', gap: '6px' }}
+          >
+            <div>
+              <div style={labelStyle}>Type</div>
+              <select
+                data-testid="transition-type"
+                value={transition.type}
+                onChange={(e) => handleTypeChange(e.target.value as TransitionType)}
+                style={fieldStyle}
+              >
+                {TRANSITION_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div style={labelStyle}>Duration: {transition.duration.toFixed(2)}s</div>
+              <input
+                type="range"
+                data-testid="transition-duration"
+                min={TRANSITION_DURATION_MIN}
+                max={TRANSITION_DURATION_MAX}
+                step={0.1}
+                value={transition.duration}
+                onChange={(e) => handleDurationChange(parseFloat(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!transition && (
+        <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic' }}>No transition</div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Effects section (add / manage effects per clip)
 // ---------------------------------------------------------------------------
 
@@ -1251,6 +1389,11 @@ function ClipProperties({ clipId }: { clipId: string }) {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Transition section */}
+      <div style={{ marginBottom: '12px' }}>
+        <TransitionSection clipId={clipId} />
       </div>
 
       {/* Effects section */}

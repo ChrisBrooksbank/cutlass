@@ -3,6 +3,7 @@ import { temporal } from 'zundo'
 import type { TemporalState } from 'zundo'
 import type {
   Clip,
+  ClipTransition,
   Effect,
   Keyframe,
   MediaAsset,
@@ -16,6 +17,7 @@ import type {
 
 export type {
   Clip,
+  ClipTransition,
   EasingType,
   Effect,
   Keyframe,
@@ -23,6 +25,7 @@ export type {
   MediaAssetType,
   Track,
   TrackType,
+  TransitionType,
 } from './types'
 
 interface EditorActions {
@@ -68,6 +71,9 @@ interface EditorActions {
   selectClip: (clipId: string, addToSelection?: boolean) => void
   selectTrack: (trackId: string | null) => void
   clearSelection: () => void
+
+  // Transitions
+  setClipTransition: (clipId: string, transition: ClipTransition | null) => void
 
   // Effects
   addEffect: (clipId: string, effect: Omit<Effect, 'id'>) => string
@@ -502,6 +508,20 @@ export const useEditorStore = create<EditorStore>()(
 
       clearSelection: () => {
         set({ selection: DEFAULT_SELECTION })
+      },
+
+      // --- Transitions ---
+
+      setClipTransition: (clipId, transition) => {
+        set((state) => ({
+          project: {
+            ...state.project,
+            tracks: updateClipInTracks(state.project.tracks, clipId, (c) => ({
+              ...c,
+              transitionOut: transition ?? undefined,
+            })),
+          },
+        }))
       },
 
       // --- Effects ---

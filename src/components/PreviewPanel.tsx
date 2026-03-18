@@ -7,6 +7,13 @@ import {
   projectDuration,
   formatTime,
 } from '@/components/previewUtils'
+import {
+  findTransitionAtTime,
+  incomingSourceTime,
+  outgoingOpacity,
+  incomingOpacity,
+  incomingClipPath,
+} from '@/components/transitionUtils'
 import { computeBlurRegion } from '@/components/blurUtils'
 import { computeTextOverlay } from '@/components/textOverlayUtils'
 import {
@@ -644,10 +651,12 @@ function ShapeAnnotationOverlay({
 
 export default function PreviewPanel() {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const video2Ref = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   const lastWallRef = useRef<number | null>(null)
   const currentAssetRef = useRef<MediaAsset | null>(null)
+  const incomingAssetRef = useRef<MediaAsset | null>(null)
 
   const tracks = useEditorStore((s) => s.project.tracks)
   const mediaAssets = useEditorStore((s) => s.project.mediaAssets)
@@ -661,6 +670,12 @@ export default function PreviewPanel() {
   const activeClip = findActiveVideoClip(tracks, currentTime)
   const activeAsset = activeClip
     ? (mediaAssets.find((a) => a.id === activeClip.sourceId) ?? null)
+    : null
+
+  // Transition detection
+  const activeTransition = findTransitionAtTime(tracks, currentTime)
+  const incomingAsset = activeTransition
+    ? (mediaAssets.find((a) => a.id === activeTransition.incomingClip.sourceId) ?? null)
     : null
 
   // Clip time relative to clip start (for keyframe evaluation)
@@ -691,6 +706,50 @@ export default function PreviewPanel() {
       video.currentTime = src
     }
   }, [currentTime, isPlaying, activeClip])
+
+  // Sync incoming video src for transition
+  useEffect(() => {
+    const video2 = video2Ref.current
+    if (!video2) return
+    if (incomingAsset === incomingAssetRef.current) return
+    incomingAssetRef.current = incomingAsset
+    if (incomingAsset) {
+      video2.src = incomingAsset.url
+      video2.load()
+    } else {
+      video2.removeAttribute('src')
+      video2.load()
+    }
+  })
+
+  // Seek incoming video when paused (to match transition source time)
+  useEffect(() => {
+    if (isPlaying) return
+    const video2 = video2Ref.current
+    if (!video2 || !activeTransition || !incomingAsset) return
+    const src = incomingSourceTime(activeTransition, currentTime)
+    if (Math.abs(video2.currentTime - src) > 0.05) {
+      video2.currentTime = src
+    }
+  }, [currentTime, isPlaying, activeTransition, incomingAsset])
+
+  // Play/pause the incoming video when a transition is active during playback
+  useEffect(() => {
+    const video2 = video2Ref.current
+    if (!video2) return
+    if (isPlaying && activeTransition && incomingAsset) {
+      const src = incomingSourceTime(activeTransition, currentTime)
+      video2.currentTime = src
+      video2.playbackRate = activeTransition.incomingClip.speed
+      video2.play().catch(() => {
+        // Autoplay may be blocked; transition will still render via opacity changes
+      })
+    } else {
+      video2.pause()
+    }
+    // Only run when transition status or playback state changes, not on every currentTime tick
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, !!activeTransition, incomingAsset])
 
   // Handle play/pause state changes
   useEffect(() => {
@@ -753,12 +812,56 @@ export default function PreviewPanel() {
         style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#000' }}
       >
         <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          {/* Primary video (outgoing clip or normal playback) */}
           <video
             ref={videoRef}
             data-testid="preview-video"
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              opacity: activeTransition
+                ? outgoingOpacity(activeTransition.type, activeTransition.progress)
+                : 1,
+            }}
             playsInline
           />
+          {/* Secondary video (incoming clip during transition) */}
+          <video
+            ref={video2Ref}
+            data-testid="preview-video-incoming"
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              opacity: activeTransition
+                ? incomingOpacity(activeTransition.type, activeTransition.progress)
+                : 0,
+              clipPath: activeTransition
+                ? (incomingClipPath(activeTransition.type, activeTransition.progress) ?? undefined)
+                : undefined,
+              display: activeTransition ? 'block' : 'none',
+            }}
+            playsInline
+          />
+          {/* Fade-to-black overlay */}
+          {activeTransition?.type === 'fade-to-black' && (
+            <div
+              data-testid="transition-black-overlay"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: '#000',
+                opacity:
+                  activeTransition.progress < 0.5
+                    ? activeTransition.progress * 2
+                    : (1 - activeTransition.progress) * 2,
+                pointerEvents: 'none',
+              }}
+            />
+          )}
           {activeClip && (
             <BlurOverlay
               clipId={activeClip.id}
