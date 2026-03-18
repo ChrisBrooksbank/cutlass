@@ -37,6 +37,7 @@ export default function TimelinePanel() {
   const currentTime = useEditorStore((s) => s.playback.currentTime)
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime)
   const splitClip = useEditorStore((s) => s.splitClip)
+  const removeClips = useEditorStore((s) => s.removeClips)
 
   useEffect(() => {
     const el = containerRef.current
@@ -87,6 +88,12 @@ export default function TimelinePanel() {
     }
   }, [tracks, selectedClipIds, currentTime, splitClip])
 
+  const handleDelete = useCallback(() => {
+    if (selectedClipIds.length > 0) {
+      removeClips(selectedClipIds)
+    }
+  }, [selectedClipIds, removeClips])
+
   const tracksHeight = getTracksHeight(tracks.length)
   const stageHeight = Math.max(size.height, RULER_HEIGHT + tracksHeight)
 
@@ -110,6 +117,23 @@ export default function TimelinePanel() {
             }}
           >
             Split
+          </button>
+          <button
+            onClick={handleDelete}
+            title="Delete selected clip(s) (Del)"
+            disabled={selectedClipIds.length === 0}
+            style={{
+              fontSize: 11,
+              padding: '2px 8px',
+              borderRadius: 4,
+              border: '1px solid #374151',
+              background: '#1e293b',
+              color: selectedClipIds.length === 0 ? '#4b5563' : '#f87171',
+              cursor: selectedClipIds.length === 0 ? 'default' : 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Delete
           </button>
           {ADD_TRACK_TYPES.map(({ type, label }) => (
             <button

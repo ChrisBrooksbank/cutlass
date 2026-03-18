@@ -169,6 +169,38 @@ describe('clips', () => {
     expect(getStore().project.tracks[0].clips).toHaveLength(0)
   })
 
+  it('removeClips clears removed clips from selection', () => {
+    getStore().addTrack('video')
+    const trackId = getStore().project.tracks[0].id
+    const clipData = {
+      sourceId: 'src',
+      startTime: 0,
+      duration: 5,
+      sourceIn: 0,
+      sourceOut: 5,
+      speed: 1,
+      effects: [],
+    }
+    getStore().addClip(trackId, clipData)
+    getStore().addClip(trackId, { ...clipData, startTime: 5 })
+    const [id1, id2] = getStore().project.tracks[0].clips.map((c) => c.id)
+    getStore().selectClip(id1)
+    getStore().selectClip(id2, true)
+    expect(getStore().selection.selectedClipIds).toHaveLength(2)
+    getStore().removeClips([id1, id2])
+    expect(getStore().project.tracks[0].clips).toHaveLength(0)
+    expect(getStore().selection.selectedClipIds).toHaveLength(0)
+  })
+
+  it('removeClip clears removed clip from selection', () => {
+    const { clipId } = addTrackAndClip()
+    getStore().selectClip(clipId)
+    expect(getStore().selection.selectedClipIds).toContain(clipId)
+    getStore().removeClip(clipId)
+    expect(getStore().project.tracks[0].clips).toHaveLength(0)
+    expect(getStore().selection.selectedClipIds).not.toContain(clipId)
+  })
+
   it('moves a clip within the same track', () => {
     const { trackId, clipId } = addTrackAndClip()
     getStore().moveClip(clipId, trackId, 20)
