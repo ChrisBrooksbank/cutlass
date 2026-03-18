@@ -26,6 +26,10 @@ export default function TimelinePanel() {
   const setScrollLeft = useEditorStore((s) => s.setScrollLeft)
   const addTrack = useEditorStore((s) => s.addTrack)
   const tracks = useEditorStore((s) => s.project.tracks)
+  const mediaAssets = useEditorStore((s) => s.project.mediaAssets)
+  const selectedClipIds = useEditorStore((s) => s.selection.selectedClipIds)
+  const selectClip = useEditorStore((s) => s.selectClip)
+  const moveClip = useEditorStore((s) => s.moveClip)
 
   useEffect(() => {
     const el = containerRef.current
@@ -108,6 +112,12 @@ export default function TimelinePanel() {
               tracks={tracks}
               width={size.width}
               height={stageHeight - RULER_HEIGHT}
+              mediaAssets={mediaAssets}
+              pixelsPerSecond={pixelsPerSecond}
+              scrollLeft={scrollLeft}
+              selectedClipIds={selectedClipIds}
+              onSelectClip={selectClip}
+              onMoveClip={moveClip}
             />
           </Layer>
         </Stage>

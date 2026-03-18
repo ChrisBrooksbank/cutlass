@@ -1,6 +1,7 @@
 import { Group, Rect, Line } from 'react-konva'
-import type { Track, TrackType } from '@/store/types'
+import type { MediaAsset, Track, TrackType } from '@/store/types'
 import { TRACK_HEIGHT, TRACK_HEADER_WIDTH } from './timelineUtils'
+import ClipBlock from './ClipBlock'
 
 const TRACK_BG: Record<TrackType, string> = {
   video: '#1e293b',
@@ -18,13 +19,33 @@ interface TrackLanesLayerProps {
   tracks: Track[]
   width: number
   height: number
+  mediaAssets: MediaAsset[]
+  pixelsPerSecond: number
+  scrollLeft: number
+  selectedClipIds: string[]
+  onSelectClip: (clipId: string, addToSelection: boolean) => void
+  onMoveClip: (clipId: string, targetTrackId: string, startTime: number) => void
 }
 
-export default function TrackLanesLayer({ tracks, width, height }: TrackLanesLayerProps) {
+export default function TrackLanesLayer({
+  tracks,
+  width,
+  height,
+  mediaAssets,
+  pixelsPerSecond,
+  scrollLeft,
+  selectedClipIds,
+  onSelectClip,
+  onMoveClip,
+}: TrackLanesLayerProps) {
+  const assetMap = new Map(mediaAssets.map((a) => [a.id, a]))
+
   return (
     <Group>
       {/* Overall background for the tracks area */}
       <Rect x={0} y={0} width={width} height={height} fill="#0f172a" />
+
+      {/* Lane background rows */}
       {tracks.map((track, index) => {
         const y = index * TRACK_HEIGHT
         const bg = track.muted ? TRACK_BG_MUTED[track.type] : TRACK_BG[track.type]
@@ -47,6 +68,25 @@ export default function TrackLanesLayer({ tracks, width, height }: TrackLanesLay
           </Group>
         )
       })}
+
+      {/* Clip blocks rendered on top of lane backgrounds */}
+      {tracks.map((track, trackIndex) =>
+        track.clips.map((clip) => (
+          <ClipBlock
+            key={clip.id}
+            clip={clip}
+            track={track}
+            trackIndex={trackIndex}
+            allTracks={tracks}
+            mediaAsset={assetMap.get(clip.sourceId)}
+            pixelsPerSecond={pixelsPerSecond}
+            scrollLeft={scrollLeft}
+            isSelected={selectedClipIds.includes(clip.id)}
+            onSelect={onSelectClip}
+            onMove={onMoveClip}
+          />
+        )),
+      )}
     </Group>
   )
 }
