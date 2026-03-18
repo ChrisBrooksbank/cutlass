@@ -3,6 +3,8 @@ import { temporal } from 'zundo'
 import type { TemporalState } from 'zundo'
 import type {
   Clip,
+  Effect,
+  Keyframe,
   MediaAsset,
   PlaybackState,
   ProjectState,
@@ -66,6 +68,20 @@ interface EditorActions {
   selectClip: (clipId: string, addToSelection?: boolean) => void
   selectTrack: (trackId: string | null) => void
   clearSelection: () => void
+
+  // Effects
+  addEffect: (clipId: string, effect: Omit<Effect, 'id'>) => string
+  removeEffect: (clipId: string, effectId: string) => void
+
+  // Keyframes
+  addKeyframe: (clipId: string, effectId: string, keyframe: Omit<Keyframe, 'id'>) => string
+  removeKeyframe: (clipId: string, effectId: string, keyframeId: string) => void
+  updateKeyframe: (
+    clipId: string,
+    effectId: string,
+    keyframeId: string,
+    updates: Partial<Pick<Keyframe, 'time' | 'value' | 'easing'>>,
+  ) => void
 
   // UI
   setPixelsPerSecond: (pps: number) => void
@@ -485,6 +501,91 @@ export const useEditorStore = create<EditorStore>()(
 
       clearSelection: () => {
         set({ selection: DEFAULT_SELECTION })
+      },
+
+      // --- Effects ---
+
+      addEffect: (clipId, effect) => {
+        const id = crypto.randomUUID()
+        const newEffect: Effect = { ...effect, id }
+        set((state) => ({
+          project: {
+            ...state.project,
+            tracks: updateClipInTracks(state.project.tracks, clipId, (c) => ({
+              ...c,
+              effects: [...c.effects, newEffect],
+            })),
+          },
+        }))
+        return id
+      },
+
+      removeEffect: (clipId, effectId) => {
+        set((state) => ({
+          project: {
+            ...state.project,
+            tracks: updateClipInTracks(state.project.tracks, clipId, (c) => ({
+              ...c,
+              effects: c.effects.filter((e) => e.id !== effectId),
+            })),
+          },
+        }))
+      },
+
+      // --- Keyframes ---
+
+      addKeyframe: (clipId, effectId, keyframe) => {
+        const id = crypto.randomUUID()
+        const newKeyframe: Keyframe = { ...keyframe, id }
+        set((state) => ({
+          project: {
+            ...state.project,
+            tracks: updateClipInTracks(state.project.tracks, clipId, (c) => ({
+              ...c,
+              effects: c.effects.map((e) =>
+                e.id === effectId ? { ...e, keyframes: [...e.keyframes, newKeyframe] } : e,
+              ),
+            })),
+          },
+        }))
+        return id
+      },
+
+      removeKeyframe: (clipId, effectId, keyframeId) => {
+        set((state) => ({
+          project: {
+            ...state.project,
+            tracks: updateClipInTracks(state.project.tracks, clipId, (c) => ({
+              ...c,
+              effects: c.effects.map((e) =>
+                e.id === effectId
+                  ? { ...e, keyframes: e.keyframes.filter((k) => k.id !== keyframeId) }
+                  : e,
+              ),
+            })),
+          },
+        }))
+      },
+
+      updateKeyframe: (clipId, effectId, keyframeId, updates) => {
+        set((state) => ({
+          project: {
+            ...state.project,
+            tracks: updateClipInTracks(state.project.tracks, clipId, (c) => ({
+              ...c,
+              effects: c.effects.map((e) =>
+                e.id === effectId
+                  ? {
+                      ...e,
+                      keyframes: e.keyframes.map((k) =>
+                        k.id === keyframeId ? { ...k, ...updates } : k,
+                      ),
+                    }
+                  : e,
+              ),
+            })),
+          },
+        }))
       },
 
       // --- UI ---

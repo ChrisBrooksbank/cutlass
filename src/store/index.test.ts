@@ -580,3 +580,137 @@ describe('undo/redo', () => {
     expect(getTemporal().futureStates).toHaveLength(0)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Effects & Keyframes
+// ---------------------------------------------------------------------------
+
+describe('effects and keyframes', () => {
+  function setupClipWithEffect() {
+    getStore().addTrack('video')
+    const trackId = getStore().project.tracks[0].id
+    getStore().addClip(trackId, {
+      sourceId: 'src',
+      startTime: 0,
+      duration: 10,
+      sourceIn: 0,
+      sourceOut: 10,
+      speed: 1,
+      effects: [],
+    })
+    const clipId = getStore().project.tracks[0].clips[0].id
+    const effectId = getStore().addEffect(clipId, {
+      type: 'zoom',
+      params: { strength: 1.5 },
+      keyframes: [],
+    })
+    return { trackId, clipId, effectId }
+  }
+
+  it('adds an effect to a clip', () => {
+    const { clipId, effectId } = setupClipWithEffect()
+    const clip = getStore().project.tracks[0].clips.find((c) => c.id === clipId)!
+    expect(clip.effects).toHaveLength(1)
+    expect(clip.effects[0].id).toBe(effectId)
+    expect(clip.effects[0].type).toBe('zoom')
+    expect(clip.effects[0].params.strength).toBe(1.5)
+  })
+
+  it('removes an effect from a clip', () => {
+    const { clipId, effectId } = setupClipWithEffect()
+    getStore().removeEffect(clipId, effectId)
+    const clip = getStore().project.tracks[0].clips.find((c) => c.id === clipId)!
+    expect(clip.effects).toHaveLength(0)
+  })
+
+  it('addEffect is undoable', () => {
+    const { clipId, effectId } = setupClipWithEffect()
+    expect(getStore().project.tracks[0].clips.find((c) => c.id === clipId)!.effects).toHaveLength(1)
+    getTemporal().undo()
+    // After undo the effect should be gone (or the whole clip/track depending on undo depth)
+    const clip = getStore().project.tracks[0].clips.find((c) => c.id === clipId)
+    if (clip) {
+      expect(clip.effects.find((e) => e.id === effectId)).toBeUndefined()
+    }
+  })
+
+  it('adds a keyframe to an effect', () => {
+    const { clipId, effectId } = setupClipWithEffect()
+    const kfId = getStore().addKeyframe(clipId, effectId, {
+      time: 1,
+      value: 1.5,
+      easing: 'linear',
+    })
+    const clip = getStore().project.tracks[0].clips.find((c) => c.id === clipId)!
+    const effect = clip.effects.find((e) => e.id === effectId)!
+    expect(effect.keyframes).toHaveLength(1)
+    expect(effect.keyframes[0].id).toBe(kfId)
+    expect(effect.keyframes[0].time).toBe(1)
+    expect(effect.keyframes[0].value).toBe(1.5)
+    expect(effect.keyframes[0].easing).toBe('linear')
+  })
+
+  it('removes a keyframe from an effect', () => {
+    const { clipId, effectId } = setupClipWithEffect()
+    const kfId = getStore().addKeyframe(clipId, effectId, {
+      time: 1,
+      value: 1.5,
+      easing: 'linear',
+    })
+    getStore().removeKeyframe(clipId, effectId, kfId)
+    const clip = getStore().project.tracks[0].clips.find((c) => c.id === clipId)!
+    const effect = clip.effects.find((e) => e.id === effectId)!
+    expect(effect.keyframes).toHaveLength(0)
+  })
+
+  it('updates keyframe time, value, and easing', () => {
+    const { clipId, effectId } = setupClipWithEffect()
+    const kfId = getStore().addKeyframe(clipId, effectId, {
+      time: 1,
+      value: 1.5,
+      easing: 'linear',
+    })
+    getStore().updateKeyframe(clipId, effectId, kfId, {
+      time: 2,
+      value: 3,
+      easing: 'ease-in-out',
+    })
+    const clip = getStore().project.tracks[0].clips.find((c) => c.id === clipId)!
+    const kf = clip.effects.find((e) => e.id === effectId)!.keyframes[0]
+    expect(kf.time).toBe(2)
+    expect(kf.value).toBe(3)
+    expect(kf.easing).toBe('ease-in-out')
+  })
+
+  it('updateKeyframe supports partial updates', () => {
+    const { clipId, effectId } = setupClipWithEffect()
+    const kfId = getStore().addKeyframe(clipId, effectId, {
+      time: 1,
+      value: 1.5,
+      easing: 'ease-in',
+    })
+    getStore().updateKeyframe(clipId, effectId, kfId, { value: 5 })
+    const clip = getStore().project.tracks[0].clips.find((c) => c.id === clipId)!
+    const kf = clip.effects.find((e) => e.id === effectId)!.keyframes[0]
+    expect(kf.time).toBe(1) // unchanged
+    expect(kf.value).toBe(5)
+    expect(kf.easing).toBe('ease-in') // unchanged
+  })
+
+  it('supports multiple keyframes on an effect', () => {
+    const { clipId, effectId } = setupClipWithEffect()
+    getStore().addKeyframe(clipId, effectId, { time: 0, value: 1, easing: 'linear' })
+    getStore().addKeyframe(clipId, effectId, { time: 5, value: 2, easing: 'ease-out' })
+    getStore().addKeyframe(clipId, effectId, { time: 10, value: 1, easing: 'linear' })
+    const clip = getStore().project.tracks[0].clips.find((c) => c.id === clipId)!
+    expect(clip.effects.find((e) => e.id === effectId)!.keyframes).toHaveLength(3)
+  })
+
+  it('supports multiple effects on a clip', () => {
+    const { clipId } = setupClipWithEffect()
+    getStore().addEffect(clipId, { type: 'blur', params: { radius: 10 }, keyframes: [] })
+    const clip = getStore().project.tracks[0].clips.find((c) => c.id === clipId)!
+    expect(clip.effects).toHaveLength(2)
+    expect(clip.effects.map((e) => e.type)).toEqual(['zoom', 'blur'])
+  })
+})
