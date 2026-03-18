@@ -21,6 +21,7 @@ export default function RecordingControls({ onRecordingComplete }: RecordingCont
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const storageRef = useRef<ChunkStorage | null>(null)
+  const trackEndedRef = useRef<{ track: MediaStreamTrack; handler: () => void } | null>(null)
 
   // Wall-clock time when recording last started/resumed
   const segmentStartRef = useRef<number>(0)
@@ -50,6 +51,10 @@ export default function RecordingControls({ onRecordingComplete }: RecordingCont
   useEffect(() => {
     return () => {
       stopTimer()
+      if (trackEndedRef.current) {
+        trackEndedRef.current.track.removeEventListener('ended', trackEndedRef.current.handler)
+        trackEndedRef.current = null
+      }
       streamRef.current?.getTracks().forEach((t) => t.stop())
     }
   }, [stopTimer])
@@ -75,6 +80,11 @@ export default function RecordingControls({ onRecordingComplete }: RecordingCont
       }
 
       recorder.onstop = () => {
+        // Remove the track ended listener
+        if (trackEndedRef.current) {
+          trackEndedRef.current.track.removeEventListener('ended', trackEndedRef.current.handler)
+          trackEndedRef.current = null
+        }
         const duration = accumulatedRef.current
         void storage.toBlob('video/webm').then((blob) => {
           void storage.dispose().then(() => {
@@ -92,14 +102,19 @@ export default function RecordingControls({ onRecordingComplete }: RecordingCont
       }
 
       // Handle user clicking "Stop sharing" in the browser's native UI
-      stream.getVideoTracks()[0]?.addEventListener('ended', () => {
-        if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-          if (recorderRef.current.state === 'recording') {
-            accumulatedRef.current += (Date.now() - segmentStartRef.current) / 1000
+      const videoTrack = stream.getVideoTracks()[0]
+      if (videoTrack) {
+        const onTrackEnded = () => {
+          if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+            if (recorderRef.current.state === 'recording') {
+              accumulatedRef.current += (Date.now() - segmentStartRef.current) / 1000
+            }
+            recorderRef.current.stop()
           }
-          recorderRef.current.stop()
         }
-      })
+        videoTrack.addEventListener('ended', onTrackEnded)
+        trackEndedRef.current = { track: videoTrack, handler: onTrackEnded }
+      }
 
       recorder.start(1000) // emit chunks every second
       setStatus('recording')

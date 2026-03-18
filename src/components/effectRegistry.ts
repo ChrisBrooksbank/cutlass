@@ -18,6 +18,15 @@ import {
   INTRO_OUTRO_DEFAULT_PARAMS,
 } from './introOutroUtils'
 
+/** Escape a string for use in FFmpeg's drawtext filter value. */
+function escapeDrawtext(s: string): string {
+  return s
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/:/g, '\\:')
+    .replace(/;/g, '\\;')
+}
+
 /** Expand a 3-digit hex (e.g. '#fff') to 6-digit ('0xffffff'), or convert 6-digit '#rrggbb' to '0xrrggbb'. */
 function hexToFFmpegColor(hex: string): string {
   const h = hex.startsWith('#') ? hex.slice(1) : hex
@@ -207,12 +216,12 @@ registerEffect({
     ctx.restore()
   },
   toFFmpegFilter(effect) {
-    const text = ((effect.params.text as string | undefined) ?? 'Label').replace(/'/g, "\\'")
+    const text = escapeDrawtext((effect.params.text as string | undefined) ?? 'Label')
     const x = (effect.params.x as number | undefined) ?? 50
     const y = (effect.params.y as number | undefined) ?? 50
     const fontSize = (effect.params.fontSize as number | undefined) ?? 32
     const color = hexToFFmpegColor((effect.params.color as string | undefined) ?? '#ffffff')
-    const fontFamily = ((effect.params.fontFamily as string | undefined) ?? 'sans-serif').replace(/'/g, "\\'")
+    const fontFamily = escapeDrawtext((effect.params.fontFamily as string | undefined) ?? 'sans-serif')
     return `drawtext=text='${text}':x=${x}:y=${y}:fontsize=${fontSize}:fontcolor=${color}:fontfamily='${fontFamily}'`
   },
 })

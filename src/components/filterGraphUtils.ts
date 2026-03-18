@@ -218,6 +218,25 @@ export function collectInputs(project: ProjectState): ClipInput[] {
   return inputs
 }
 
+/**
+ * Find clips whose sourceId references an asset that no longer exists.
+ * Returns an array of { trackIndex, clipId } for each orphaned clip.
+ */
+export function findOrphanedClips(
+  project: ProjectState,
+): { trackIndex: number; clipId: string }[] {
+  const assetIds = new Set(project.mediaAssets.map((a) => a.id))
+  const orphaned: { trackIndex: number; clipId: string }[] = []
+  for (let ti = 0; ti < project.tracks.length; ti++) {
+    for (const clip of project.tracks[ti].clips) {
+      if (!assetIds.has(clip.sourceId)) {
+        orphaned.push({ trackIndex: ti, clipId: clip.id })
+      }
+    }
+  }
+  return orphaned
+}
+
 // ---------------------------------------------------------------------------
 // Chain grouping (internal)
 // ---------------------------------------------------------------------------

@@ -68,6 +68,11 @@ function BlurRect({
     startX: number
     startY: number
   } | null>(null)
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    return () => { cleanupRef.current?.() }
+  }, [])
 
   const region = computeBlurRegion(effect, clipTime)
   const { scale, offsetX, offsetY } = displayInfo
@@ -100,12 +105,14 @@ function BlurRect({
 
       const onMouseUp = () => {
         dragRef.current = null
+        cleanupRef.current = null
         window.removeEventListener('mousemove', onMouseMove)
         window.removeEventListener('mouseup', onMouseUp)
       }
 
       window.addEventListener('mousemove', onMouseMove)
       window.addEventListener('mouseup', onMouseUp)
+      cleanupRef.current = onMouseUp
     },
     [clipId, effect.id, region.x, region.y, scale, updateEffectParams],
   )
@@ -204,6 +211,11 @@ function TextRect({
     startX: number
     startY: number
   } | null>(null)
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    return () => { cleanupRef.current?.() }
+  }, [])
 
   const overlay = computeTextOverlay(effect)
   const { scale, offsetX, offsetY } = displayInfo
@@ -234,12 +246,14 @@ function TextRect({
 
       const onMouseUp = () => {
         dragRef.current = null
+        cleanupRef.current = null
         window.removeEventListener('mousemove', onMouseMove)
         window.removeEventListener('mouseup', onMouseUp)
       }
 
       window.addEventListener('mousemove', onMouseMove)
       window.addEventListener('mouseup', onMouseUp)
+      cleanupRef.current = onMouseUp
     },
     [clipId, effect.id, overlay.x, overlay.y, scale, updateEffectParams],
   )
@@ -337,6 +351,11 @@ function ShapeRectElement({
     startX: number
     startY: number
   } | null>(null)
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    return () => { cleanupRef.current?.() }
+  }, [])
 
   const shape = computeShapeRect(effect)
   const { scale, offsetX, offsetY } = displayInfo
@@ -367,11 +386,13 @@ function ShapeRectElement({
       }
       const onMouseUp = () => {
         dragRef.current = null
+        cleanupRef.current = null
         window.removeEventListener('mousemove', onMouseMove)
         window.removeEventListener('mouseup', onMouseUp)
       }
       window.addEventListener('mousemove', onMouseMove)
       window.addEventListener('mouseup', onMouseUp)
+      cleanupRef.current = onMouseUp
     },
     [clipId, effect.id, shape.x, shape.y, scale, updateEffectParams],
   )
@@ -416,6 +437,11 @@ function ShapeCircleElement({
     startX: number
     startY: number
   } | null>(null)
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    return () => { cleanupRef.current?.() }
+  }, [])
 
   const shape = computeShapeCircle(effect)
   const { scale, offsetX, offsetY } = displayInfo
@@ -446,11 +472,13 @@ function ShapeCircleElement({
       }
       const onMouseUp = () => {
         dragRef.current = null
+        cleanupRef.current = null
         window.removeEventListener('mousemove', onMouseMove)
         window.removeEventListener('mouseup', onMouseUp)
       }
       window.addEventListener('mousemove', onMouseMove)
       window.addEventListener('mouseup', onMouseUp)
+      cleanupRef.current = onMouseUp
     },
     [clipId, effect.id, shape.x, shape.y, scale, updateEffectParams],
   )
@@ -498,6 +526,11 @@ function ShapeArrowElement({
     startX2: number
     startY2: number
   } | null>(null)
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    return () => { cleanupRef.current?.() }
+  }, [])
 
   const shape = computeShapeArrow(effect)
   const { scale, offsetX, offsetY } = displayInfo
@@ -532,11 +565,13 @@ function ShapeArrowElement({
       }
       const onMouseUp = () => {
         dragRef.current = null
+        cleanupRef.current = null
         window.removeEventListener('mousemove', onMouseMove)
         window.removeEventListener('mouseup', onMouseUp)
       }
       window.addEventListener('mousemove', onMouseMove)
       window.addEventListener('mouseup', onMouseUp)
+      cleanupRef.current = onMouseUp
     },
     [clipId, effect.id, shape.x1, shape.y1, shape.x2, shape.y2, scale, updateEffectParams],
   )
@@ -698,7 +733,7 @@ export default function PreviewPanel() {
       video.removeAttribute('src')
       video.load()
     }
-  })
+  }, [activeAsset])
 
   // Seek video when paused or when active clip changes
   useEffect(() => {
@@ -724,7 +759,7 @@ export default function PreviewPanel() {
       video2.removeAttribute('src')
       video2.load()
     }
-  })
+  }, [incomingAsset])
 
   // Seek incoming video when paused (to match transition source time)
   useEffect(() => {
@@ -742,7 +777,7 @@ export default function PreviewPanel() {
     const video2 = video2Ref.current
     if (!video2) return
     if (isPlaying && activeTransition && incomingAsset) {
-      const src = incomingSourceTime(activeTransition, currentTime)
+      const src = incomingSourceTime(activeTransition, useEditorStore.getState().playback.currentTime)
       video2.currentTime = src
       video2.playbackRate = activeTransition.incomingClip.speed
       video2.play().catch(() => {

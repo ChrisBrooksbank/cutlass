@@ -23,7 +23,7 @@ import {
 } from '@/components/gifExportUtils'
 import type { GifExportSettings } from '@/components/gifExportUtils'
 import { loadFFmpeg } from '@/components/ffmpegLoader'
-import { buildFFmpegArgs, collectInputs } from '@/components/filterGraphUtils'
+import { buildFFmpegArgs, collectInputs, findOrphanedClips } from '@/components/filterGraphUtils'
 import { progressRatioToPercent } from '@/components/exportProgressUtils'
 import { getEffectHandler } from '@/components/effectRegistry'
 import { useEditorStore } from '@/store'
@@ -232,6 +232,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
   const project = useEditorStore((s) => s.project)
 
   const canvasOnlyEffects = useMemo(() => detectCanvasOnlyEffects(project), [project])
+  const orphanedClips = useMemo(() => findOrphanedClips(project), [project])
 
   const estimatedBytes =
     exportType === 'gif'
@@ -319,27 +320,34 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           args.push('-i', `input${i}${getExtFromUrl(inputs[i].url)}`)
         }
 
-        // Filter complex (if any)
-        if (ffmpegArgs.filterComplex) {
-          args.push('-filter_complex', ffmpegArgs.filterComplex)
-        }
+        // Scale to target resolution
+        const targetRes =
+          preset === 'custom'
+            ? { width: customWidth, height: customHeight }
+            : RESOLUTION_PRESET_VALUES[preset]
+        const scaleFilter = `scale=${targetRes.width}:${targetRes.height}`
 
-        // Map video output
-        if (ffmpegArgs.videoMap) {
-          args.push('-map', ffmpegArgs.videoMap)
+        // When a filter_complex is present, appending -vf would conflict.
+        // Instead, fold the scale into the filter graph as an extra stage.
+        if (ffmpegArgs.filterComplex) {
+          // videoMap is e.g. "[vout]" or "[vpos_xxx_0]"
+          const mapLabel = ffmpegArgs.videoMap.replace(/^\[|\]$/g, '')
+          const scaledLabel = `${mapLabel}_scaled`
+          const extendedFC = `${ffmpegArgs.filterComplex};[${mapLabel}]${scaleFilter}[${scaledLabel}]`
+          args.push('-filter_complex', extendedFC)
+          args.push('-map', `[${scaledLabel}]`)
+        } else {
+          // Simple single-input: use -vf directly
+          if (ffmpegArgs.videoMap) {
+            args.push('-map', ffmpegArgs.videoMap)
+          }
+          args.push('-vf', scaleFilter)
         }
 
         // Map audio output
         if (ffmpegArgs.audioMap) {
           args.push('-map', ffmpegArgs.audioMap)
         }
-
-        // Scale to target resolution
-        const targetRes =
-          preset === 'custom'
-            ? { width: customWidth, height: customHeight }
-            : RESOLUTION_PRESET_VALUES[preset]
-        args.push('-vf', `scale=${targetRes.width}:${targetRes.height}`)
 
         // Codec args with quality preset CRF
         const qp = QUALITY_PRESETS[quality]
@@ -526,6 +534,14 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
               </div>
             </div>
           </>
+        )}
+
+        {/* Orphaned clips warning */}
+        {orphanedClips.length > 0 && (
+          <div style={warningBoxStyle}>
+            {orphanedClips.length} clip{orphanedClips.length > 1 ? 's' : ''} reference deleted
+            media and will be skipped in the export.
+          </div>
         )}
 
         {/* Canvas-only effect warning */}
