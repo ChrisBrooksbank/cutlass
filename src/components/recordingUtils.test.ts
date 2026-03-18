@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   formatRecordingTime,
   canPause,
   canResume,
   canStop,
   pickBestMimeType,
+  createMemoryChunkStorage,
+  createChunkStorage,
 } from './recordingUtils'
 
 describe('formatRecordingTime', () => {
@@ -73,5 +75,45 @@ describe('pickBestMimeType', () => {
 
   it('returns video/webm as default when nothing matches', () => {
     expect(pickBestMimeType([])).toBe('video/webm')
+  })
+})
+
+describe('createMemoryChunkStorage', () => {
+  it('accumulates chunks and returns a blob with the correct MIME type', async () => {
+    const storage = createMemoryChunkStorage()
+    await storage.write(new Blob(['hello']))
+    await storage.write(new Blob([' world']))
+    const blob = await storage.toBlob('video/webm')
+    expect(blob.type).toBe('video/webm')
+    expect(blob.size).toBe(11) // 'hello'.length + ' world'.length
+  })
+
+  it('returns empty blob after dispose', async () => {
+    const storage = createMemoryChunkStorage()
+    await storage.write(new Blob(['data']))
+    await storage.dispose()
+    const blob = await storage.toBlob('video/webm')
+    expect(blob.size).toBe(0)
+  })
+
+  it('returns empty blob when no chunks written', async () => {
+    const storage = createMemoryChunkStorage()
+    const blob = await storage.toBlob('video/webm')
+    expect(blob.size).toBe(0)
+  })
+})
+
+describe('createChunkStorage', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('falls back to memory storage when OPFS is unavailable', async () => {
+    // navigator.storage is not available in jsdom — OPFS will throw
+    const storage = await createChunkStorage('test-fallback.webm')
+    await storage.write(new Blob(['chunk']))
+    const blob = await storage.toBlob('video/webm')
+    expect(blob.size).toBe(5)
+    await storage.dispose()
   })
 })

@@ -5,6 +5,8 @@ import {
   canResume,
   canStop,
   getPreferredMimeType,
+  createChunkStorage,
+  type ChunkStorage,
   type RecordingStatus,
 } from './recordingUtils'
 
@@ -18,7 +20,7 @@ export default function RecordingControls({ onRecordingComplete }: RecordingCont
 
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const chunksRef = useRef<Blob[]>([])
+  const storageRef = useRef<ChunkStorage | null>(null)
 
   // Wall-clock time when recording last started/resumed
   const segmentStartRef = useRef<number>(0)
@@ -56,32 +58,37 @@ export default function RecordingControls({ onRecordingComplete }: RecordingCont
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
       streamRef.current = stream
-      chunksRef.current = []
       accumulatedRef.current = 0
       setElapsed(0)
 
       const mimeType = getPreferredMimeType()
+      const storage = await createChunkStorage(`rec-${Date.now()}.webm`)
+      storageRef.current = storage
+
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
       recorderRef.current = recorder
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
-          chunksRef.current.push(e.data)
+          void storage.write(e.data)
         }
       }
 
       recorder.onstop = () => {
         const duration = accumulatedRef.current
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' })
-        stopTimer()
-        setStatus('idle')
-        setElapsed(0)
-        chunksRef.current = []
-        accumulatedRef.current = 0
-        stream.getTracks().forEach((t) => t.stop())
-        streamRef.current = null
-        recorderRef.current = null
-        onRecordingComplete(blob, duration)
+        void storage.toBlob('video/webm').then((blob) => {
+          void storage.dispose().then(() => {
+            storageRef.current = null
+          })
+          stopTimer()
+          setStatus('idle')
+          setElapsed(0)
+          accumulatedRef.current = 0
+          stream.getTracks().forEach((t) => t.stop())
+          streamRef.current = null
+          recorderRef.current = null
+          onRecordingComplete(blob, duration)
+        })
       }
 
       // Handle user clicking "Stop sharing" in the browser's native UI

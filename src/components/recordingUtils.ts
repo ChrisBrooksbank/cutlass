@@ -41,3 +41,88 @@ export function getPreferredMimeType(): string {
   if (typeof MediaRecorder === 'undefined') return 'video/webm'
   return pickBestMimeType(candidates.filter((t) => MediaRecorder.isTypeSupported(t)))
 }
+
+/**
+ * Abstraction over chunk storage for streamed WebM recording.
+ * Implementations may write to OPFS or fall back to in-memory arrays.
+ */
+export interface ChunkStorage {
+  /** Append a recorded chunk. */
+  write(chunk: Blob): Promise<void>
+  /** Assemble all chunks into a single Blob with the given MIME type. */
+  toBlob(mimeType: string): Promise<Blob>
+  /** Release any resources (temp files, memory). */
+  dispose(): Promise<void>
+}
+
+/**
+ * In-memory ChunkStorage. Fast but not suitable for very long recordings.
+ * Used as the fallback when OPFS is unavailable.
+ */
+export function createMemoryChunkStorage(): ChunkStorage {
+  const chunks: Blob[] = []
+  return {
+    async write(chunk: Blob) {
+      chunks.push(chunk)
+    },
+    async toBlob(mimeType: string) {
+      return new Blob(chunks, { type: mimeType })
+    },
+    async dispose() {
+      chunks.length = 0
+    },
+  }
+}
+
+/**
+ * OPFS-backed ChunkStorage. Writes each chunk to a temp file in the Origin
+ * Private File System so heap memory stays bounded during long recordings.
+ */
+export async function createOPFSChunkStorage(filename: string): Promise<ChunkStorage> {
+  const root = await navigator.storage.getDirectory()
+  const fileHandle = await root.getFileHandle(filename, { create: true })
+  const writable = await fileHandle.createWritable()
+  let closed = false
+
+  return {
+    async write(chunk: Blob) {
+      await writable.write(chunk)
+    },
+    async toBlob(mimeType: string) {
+      if (!closed) {
+        await writable.close()
+        closed = true
+      }
+      const file = await fileHandle.getFile()
+      return new Blob([await file.arrayBuffer()], { type: mimeType })
+    },
+    async dispose() {
+      if (!closed) {
+        try {
+          await writable.close()
+        } catch {
+          /* already closed */
+        }
+        closed = true
+      }
+      try {
+        const r = await navigator.storage.getDirectory()
+        await r.removeEntry(filename)
+      } catch {
+        /* ignore — file may not exist */
+      }
+    },
+  }
+}
+
+/**
+ * Create the best available ChunkStorage for the current environment.
+ * Tries OPFS first; falls back to in-memory if OPFS is not supported.
+ */
+export async function createChunkStorage(filename: string): Promise<ChunkStorage> {
+  try {
+    return await createOPFSChunkStorage(filename)
+  } catch {
+    return createMemoryChunkStorage()
+  }
+}
