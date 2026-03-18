@@ -31,8 +31,8 @@ describe('buildFFmpegCoreURLs', () => {
     expect(urls.coreURL).toContain('ffmpeg-core.js')
     expect(urls.wasmURL).toContain('ffmpeg-core.wasm')
     expect(urls.workerURL).toContain('ffmpeg-core.worker.js')
-    // MT core should reference the "-mt" package
-    expect(urls.coreURL).toContain('core-mt')
+    // MT core should reference the "-mt" directory
+    expect(urls.coreURL).toContain('ffmpeg-core-mt')
   })
 
   it('returns ST URLs (no workerURL) when multiThread=false', () => {
@@ -40,8 +40,8 @@ describe('buildFFmpegCoreURLs', () => {
     expect(urls.coreURL).toContain('ffmpeg-core.js')
     expect(urls.wasmURL).toContain('ffmpeg-core.wasm')
     expect(urls.workerURL).toBeUndefined()
-    // ST core should NOT reference the "-mt" package
-    expect(urls.coreURL).not.toContain('core-mt')
+    // ST core should reference the "-st" directory
+    expect(urls.coreURL).toContain('ffmpeg-core-st')
   })
 
   it('uses custom mtBase when provided', () => {
@@ -60,13 +60,13 @@ describe('buildFFmpegCoreURLs', () => {
     expect(urls.workerURL).toBeUndefined()
   })
 
-  it('MT URLs include the expected core version', () => {
+  it('MT URLs use local path', () => {
     const urls = buildFFmpegCoreURLs(true)
-    expect(urls.coreURL).toContain('0.12.9')
+    expect(urls.coreURL).toBe('/ffmpeg-core-mt/ffmpeg-core.js')
   })
 
-  it('ST URLs include the expected core version', () => {
+  it('ST URLs use local path', () => {
     const urls = buildFFmpegCoreURLs(false)
-    expect(urls.coreURL).toContain('0.12.9')
+    expect(urls.coreURL).toBe('/ffmpeg-core-st/ffmpeg-core.js')
   })
 })

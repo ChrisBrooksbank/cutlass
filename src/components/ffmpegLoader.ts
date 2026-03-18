@@ -6,22 +6,18 @@
  * (requires Cross-Origin-Isolation headers: COOP + COEP), and falls back to
  * the single-threaded core otherwise.
  *
- * CDN URLs point to the UMD bundles on unpkg. In production you may copy these
- * assets locally and pass custom base URLs via FFmpegLoadOptions.
+ * Assets are served locally from public/. Custom base URLs can be provided
+ * via FFmpegLoadOptions for alternative deployments.
  */
 
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { toBlobURL } from '@ffmpeg/util'
 import type { LogEvent, ProgressEvent } from '@ffmpeg/ffmpeg'
 
-/** Core version aligned with the installed @ffmpeg/ffmpeg package. */
-const CORE_VERSION = '0.12.9'
+/** Local base URL for the multi-threaded ffmpeg-core (requires SharedArrayBuffer). */
+const MT_CORE_BASE = '/ffmpeg-core-mt'
 
-/** CDN base URL for the multi-threaded ffmpeg-core (requires SharedArrayBuffer). */
-const MT_CORE_BASE = `https://unpkg.com/@ffmpeg/core-mt@${CORE_VERSION}/dist/umd`
-
-/** CDN base URL for the single-threaded ffmpeg-core fallback. */
-const ST_CORE_BASE = `https://unpkg.com/@ffmpeg/core@${CORE_VERSION}/dist/umd`
+/** Local base URL for the single-threaded ffmpeg-core fallback. */
+const ST_CORE_BASE = '/ffmpeg-core-st'
 
 // ---------------------------------------------------------------------------
 // Environment detection
@@ -52,8 +48,8 @@ export interface FFmpegCoreURLs {
  * Build the URL configuration for loading FFmpeg core assets.
  *
  * @param multiThread - Whether to build URLs for the multi-threaded core.
- * @param mtBase - Override for the multi-threaded CDN base URL.
- * @param stBase - Override for the single-threaded CDN base URL.
+ * @param mtBase - Override for the multi-threaded core base path.
+ * @param stBase - Override for the single-threaded core base path.
  */
 export function buildFFmpegCoreURLs(
   multiThread: boolean,
@@ -81,13 +77,13 @@ export function buildFFmpegCoreURLs(
 
 export interface FFmpegLoadOptions {
   /**
-   * Override CDN base URL for the multi-threaded core.
-   * Useful when self-hosting the WASM assets.
+   * Override base path for the multi-threaded core.
+   * Useful for custom deployments or CDN hosting.
    */
   mtCoreBase?: string
   /**
-   * Override CDN base URL for the single-threaded core fallback.
-   * Useful when self-hosting the WASM assets.
+   * Override base path for the single-threaded core fallback.
+   * Useful for custom deployments or CDN hosting.
    */
   stCoreBase?: string
   /** Called for each FFmpeg log line (stdout + stderr). */
@@ -122,12 +118,10 @@ export async function loadFFmpeg(options: FFmpegLoadOptions = {}): Promise<FFmpe
   const rawURLs = buildFFmpegCoreURLs(useMultiThread, options.mtCoreBase, options.stCoreBase)
 
   try {
-    // Convert raw URLs to Blob URLs so the browser can load them across origins.
-    const coreURL = await toBlobURL(rawURLs.coreURL, 'text/javascript')
-    const wasmURL = await toBlobURL(rawURLs.wasmURL, 'application/wasm')
+    // Assets are served locally from public/, so no CORS conversion needed.
+    const { coreURL, wasmURL, workerURL } = rawURLs
 
-    if (useMultiThread && rawURLs.workerURL) {
-      const workerURL = await toBlobURL(rawURLs.workerURL, 'text/javascript')
+    if (useMultiThread && workerURL) {
       await ffmpeg.load({ coreURL, wasmURL, workerURL })
     } else {
       await ffmpeg.load({ coreURL, wasmURL })
@@ -136,7 +130,7 @@ export async function loadFFmpeg(options: FFmpegLoadOptions = {}): Promise<FFmpe
     const message = err instanceof Error ? err.message : String(err)
     throw new Error(
       `Failed to load FFmpeg: ${message}. ` +
-      'This may be caused by network issues, CORS restrictions, or an unsupported browser.',
+      'This may be caused by missing assets, network issues, or an unsupported browser.',
     )
   }
 

@@ -305,7 +305,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         if (abortRef.current) return
 
         const outputData = await ffmpeg.readFile('output.gif')
-        const blob = new Blob([outputData], { type: 'image/gif' })
+        const blob = new Blob([new Uint8Array(outputData as Uint8Array)], { type: 'image/gif' })
         triggerDownload(blob, filename)
       } else {
         // Video export (MP4/WebM)
@@ -360,7 +360,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
 
         const outputData = await ffmpeg.readFile(outputFilename)
         const mimeType = getFormatMimeType(format)
-        const blob = new Blob([outputData], { type: mimeType })
+        const blob = new Blob([new Uint8Array(outputData as Uint8Array)], { type: mimeType })
         triggerDownload(blob, filename)
       }
 
