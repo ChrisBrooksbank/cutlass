@@ -9,6 +9,7 @@ import {
   sortKeyframesByTime,
 } from '@/components/keyframeEditorUtils'
 import { getEffectHandler } from '@/components/effectRegistry'
+import { computeTextOverlay } from '@/components/textOverlayUtils'
 
 // ---------------------------------------------------------------------------
 // Blur effect parameter editor
@@ -163,6 +164,175 @@ function BlurEffectEditor({ clipId, effect }: { clipId: string; effect: Effect }
 }
 
 // ---------------------------------------------------------------------------
+// Text overlay effect parameter editor
+// ---------------------------------------------------------------------------
+
+const FONT_FAMILIES = ['sans-serif', 'serif', 'monospace', 'Arial', 'Georgia', 'Verdana']
+
+function TextEffectEditor({ clipId, effect }: { clipId: string; effect: Effect }) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const removeEffect = useEditorStore((s) => s.removeEffect)
+
+  const overlay = computeTextOverlay(effect)
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#1a1a1a',
+    border: '1px solid #333',
+    color: '#fff',
+    borderRadius: '3px',
+    padding: '2px 4px',
+    fontSize: '11px',
+  }
+  const labelStyle: React.CSSProperties = { color: '#666', marginBottom: '1px', fontSize: '10px' }
+
+  return (
+    <div
+      style={{
+        marginBottom: '8px',
+        border: '1px solid #333',
+        borderRadius: '4px',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 8px',
+          background: '#2a2a2a',
+          fontSize: '11px',
+          color: '#aaa',
+        }}
+      >
+        <span>Text Overlay</span>
+        <button
+          data-testid={`remove-text-${effect.id}`}
+          onClick={() => removeEffect(clipId, effect.id)}
+          title="Remove text overlay"
+          style={{
+            background: 'transparent',
+            border: '1px solid #444',
+            color: '#888',
+            borderRadius: '3px',
+            cursor: 'pointer',
+            padding: '2px 5px',
+            fontSize: '12px',
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Text content */}
+      <div style={{ padding: '6px 8px' }}>
+        <div style={labelStyle}>Text</div>
+        <textarea
+          data-testid={`text-content-${effect.id}`}
+          value={overlay.text}
+          rows={2}
+          onChange={(e) => updateEffectParams(clipId, effect.id, { text: e.target.value })}
+          style={{ ...fieldStyle, resize: 'vertical' }}
+        />
+      </div>
+
+      {/* Position */}
+      <div
+        style={{
+          padding: '0 8px 6px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '6px',
+        }}
+      >
+        <div>
+          <div style={labelStyle}>X</div>
+          <input
+            type="number"
+            data-testid={`text-x-${effect.id}`}
+            value={overlay.x}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { x: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Y</div>
+          <input
+            type="number"
+            data-testid={`text-y-${effect.id}`}
+            value={overlay.y}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { y: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+
+      {/* Font size and color */}
+      <div
+        style={{
+          padding: '0 8px 6px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '6px',
+        }}
+      >
+        <div>
+          <div style={labelStyle}>Font Size</div>
+          <input
+            type="number"
+            data-testid={`text-fontsize-${effect.id}`}
+            value={overlay.fontSize}
+            min={6}
+            max={300}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                fontSize: Math.max(6, parseInt(e.target.value, 10) || 32),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Color</div>
+          <input
+            type="color"
+            data-testid={`text-color-${effect.id}`}
+            value={overlay.color.startsWith('#') ? overlay.color : '#ffffff'}
+            onChange={(e) => updateEffectParams(clipId, effect.id, { color: e.target.value })}
+            style={{ ...fieldStyle, padding: '1px 2px', height: '24px', cursor: 'pointer' }}
+          />
+        </div>
+      </div>
+
+      {/* Font family */}
+      <div style={{ padding: '0 8px 6px' }}>
+        <div style={labelStyle}>Font Family</div>
+        <select
+          data-testid={`text-fontfamily-${effect.id}`}
+          value={overlay.fontFamily}
+          onChange={(e) => updateEffectParams(clipId, effect.id, { fontFamily: e.target.value })}
+          style={fieldStyle}
+        >
+          {FONT_FAMILIES.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Effects section (add / manage effects per clip)
 // ---------------------------------------------------------------------------
 
@@ -175,7 +345,15 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
     addEffect(clipId, { type: 'blur', params: { ...handler.defaultParams }, keyframes: [] })
   }
 
+  function handleAddText() {
+    const handler = getEffectHandler('text')
+    if (!handler) return
+    addEffect(clipId, { type: 'text', params: { ...handler.defaultParams }, keyframes: [] })
+  }
+
   const blurEffects = effects.filter((e) => e.type === 'blur')
+  const textEffects = effects.filter((e) => e.type === 'text')
+  const hasEffects = blurEffects.length > 0 || textEffects.length > 0
 
   return (
     <div>
@@ -197,29 +375,53 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
         >
           Effects
         </div>
-        <button
-          data-testid="add-blur-effect"
-          onClick={handleAddBlur}
-          style={{
-            fontSize: '11px',
-            padding: '2px 8px',
-            background: '#333',
-            border: '1px solid #555',
-            color: '#ccc',
-            borderRadius: '3px',
-            cursor: 'pointer',
-          }}
-        >
-          + Blur
-        </button>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <button
+            data-testid="add-blur-effect"
+            onClick={handleAddBlur}
+            style={{
+              fontSize: '11px',
+              padding: '2px 8px',
+              background: '#333',
+              border: '1px solid #555',
+              color: '#ccc',
+              borderRadius: '3px',
+              cursor: 'pointer',
+            }}
+          >
+            + Blur
+          </button>
+          <button
+            data-testid="add-text-effect"
+            onClick={handleAddText}
+            style={{
+              fontSize: '11px',
+              padding: '2px 8px',
+              background: '#333',
+              border: '1px solid #555',
+              color: '#ccc',
+              borderRadius: '3px',
+              cursor: 'pointer',
+            }}
+          >
+            + Text
+          </button>
+        </div>
       </div>
 
-      {blurEffects.length === 0 ? (
+      {!hasEffects ? (
         <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic', marginBottom: '8px' }}>
           No effects
         </div>
       ) : (
-        blurEffects.map((e) => <BlurEffectEditor key={e.id} clipId={clipId} effect={e} />)
+        <>
+          {blurEffects.map((e) => (
+            <BlurEffectEditor key={e.id} clipId={clipId} effect={e} />
+          ))}
+          {textEffects.map((e) => (
+            <TextEffectEditor key={e.id} clipId={clipId} effect={e} />
+          ))}
+        </>
       )}
     </div>
   )

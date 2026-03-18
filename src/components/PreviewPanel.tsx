@@ -8,6 +8,7 @@ import {
   formatTime,
 } from '@/components/previewUtils'
 import { computeBlurRegion } from '@/components/blurUtils'
+import { computeTextOverlay } from '@/components/textOverlayUtils'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -170,6 +171,139 @@ function BlurOverlay({
 }
 
 // ---------------------------------------------------------------------------
+// Draggable text overlay element
+// ---------------------------------------------------------------------------
+
+function TextRect({
+  clipId,
+  effect,
+  displayInfo,
+}: {
+  clipId: string
+  effect: Effect
+  displayInfo: DisplayInfo
+}) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const dragRef = useRef<{
+    startMouseX: number
+    startMouseY: number
+    startX: number
+    startY: number
+  } | null>(null)
+
+  const overlay = computeTextOverlay(effect)
+  const { scale, offsetX, offsetY } = displayInfo
+
+  const left = offsetX + overlay.x * scale
+  const top = offsetY + overlay.y * scale
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      dragRef.current = {
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        startX: overlay.x,
+        startY: overlay.y,
+      }
+
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!dragRef.current) return
+        const dx = (ev.clientX - dragRef.current.startMouseX) / scale
+        const dy = (ev.clientY - dragRef.current.startMouseY) / scale
+        updateEffectParams(clipId, effect.id, {
+          x: Math.round(dragRef.current.startX + dx),
+          y: Math.round(dragRef.current.startY + dy),
+        })
+      }
+
+      const onMouseUp = () => {
+        dragRef.current = null
+        window.removeEventListener('mousemove', onMouseMove)
+        window.removeEventListener('mouseup', onMouseUp)
+      }
+
+      window.addEventListener('mousemove', onMouseMove)
+      window.addEventListener('mouseup', onMouseUp)
+    },
+    [clipId, effect.id, overlay.x, overlay.y, scale, updateEffectParams],
+  )
+
+  return (
+    <div
+      data-testid={`text-overlay-${effect.id}`}
+      onMouseDown={handleMouseDown}
+      title={overlay.text}
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        border: '1px dashed rgba(100, 180, 255, 0.8)',
+        borderRadius: '2px',
+        padding: '2px 4px',
+        background: 'rgba(0, 0, 0, 0.35)',
+        color: overlay.color.startsWith('#') ? overlay.color : '#ffffff',
+        fontSize: `${Math.max(8, overlay.fontSize * scale)}px`,
+        fontFamily: overlay.fontFamily,
+        whiteSpace: 'nowrap',
+        cursor: 'move',
+        pointerEvents: 'all',
+        userSelect: 'none',
+        lineHeight: 1.2,
+      }}
+    >
+      {overlay.text}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Text overlay layer for all text effects on the active clip
+// ---------------------------------------------------------------------------
+
+function TextOverlay({
+  clipId,
+  effects,
+  containerRef,
+  projectWidth,
+  projectHeight,
+}: {
+  clipId: string
+  effects: Effect[]
+  containerRef: React.RefObject<HTMLDivElement | null>
+  projectWidth: number
+  projectHeight: number
+}) {
+  const [displayInfo, setDisplayInfo] = useState<DisplayInfo>({ scale: 1, offsetX: 0, offsetY: 0 })
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const update = () => {
+      setDisplayInfo(
+        computeDisplayInfo(el.clientWidth, el.clientHeight, projectWidth, projectHeight),
+      )
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [containerRef, projectWidth, projectHeight])
+
+  const textEffects = effects.filter((e) => e.type === 'text')
+  if (textEffects.length === 0) return null
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      {textEffects.map((effect) => (
+        <TextRect key={effect.id} clipId={clipId} effect={effect} displayInfo={displayInfo} />
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // PreviewPanel
 // ---------------------------------------------------------------------------
 
@@ -298,6 +432,15 @@ export default function PreviewPanel() {
               projectWidth={projectWidth}
               projectHeight={projectHeight}
               clipTime={clipTime}
+            />
+          )}
+          {activeClip && (
+            <TextOverlay
+              clipId={activeClip.id}
+              effects={activeClip.effects}
+              containerRef={containerRef}
+              projectWidth={projectWidth}
+              projectHeight={projectHeight}
             />
           )}
         </div>

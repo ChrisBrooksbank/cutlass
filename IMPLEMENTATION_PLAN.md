@@ -75,7 +75,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 - [x] Zoom/pan (Ken Burns) effect: keyframed scaleX/Y + x/y viewport transforms on preview canvas (spec: effects-annotations.md)
 - [x] Blur/redact regions: draggable rectangles with configurable blur strength, keyframed position/size (spec: effects-annotations.md)
 - [x] Cursor highlight overlay: replay captured cursor data as animated circle/spotlight on preview canvas (spec: effects-annotations.md)
-- [ ] Text overlays: place text on preview canvas, edit font/size/color/position (spec: effects-annotations.md)
+- [x] Text overlays: place text on preview canvas, edit font/size/color/position (spec: effects-annotations.md)
 - [ ] Shape annotations: arrows, rectangles, circles on annotation layer (spec: effects-annotations.md)
 - [ ] Clip transitions: cross-dissolve, fade-to-black, wipe with handles on clip edges in timeline (spec: effects-annotations.md)
 - [ ] Crop per clip: adjust visible region in properties panel (spec: effects-annotations.md)
