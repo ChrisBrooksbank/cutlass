@@ -237,6 +237,18 @@ describe('clips', () => {
     expect(getStore().project.tracks[0].clips[0].speed).toBe(4)
   })
 
+  it('recalculates timeline duration when speed changes', () => {
+    // addTrackAndClip adds: startTime=2, duration=10, sourceIn=0, sourceOut=10, speed=1
+    const { clipId } = addTrackAndClip()
+    getStore().setClipSpeed(clipId, 2)
+    // At 2x speed: duration = (10 - 0) / 2 = 5
+    expect(getStore().project.tracks[0].clips[0].duration).toBe(5)
+
+    getStore().setClipSpeed(clipId, 0.5)
+    // At 0.5x speed: duration = (10 - 0) / 0.5 = 20
+    expect(getStore().project.tracks[0].clips[0].duration).toBe(20)
+  })
+
   it('splits a clip at a given time', () => {
     const { clipId } = addTrackAndClip()
     // clip: startTime=2, duration=10, sourceIn=0, sourceOut=10, speed=1
