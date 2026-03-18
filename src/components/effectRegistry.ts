@@ -1,5 +1,6 @@
 import type { Effect } from '@/store/types'
 import { interpolateKeyframes } from './keyframeUtils'
+import { computeKenBurnsTransform, applyKenBurnsTransform } from './kenBurnsUtils'
 
 // ---------------------------------------------------------------------------
 // Context types passed to each handler
@@ -82,31 +83,21 @@ registerEffect({
   defaultParams: { scaleX: 1, scaleY: 1, x: 0, y: 0 },
   render(renderCtx, effect) {
     const { ctx, width, height, clipTime } = renderCtx
-    // Collect per-property keyframe channels from params
-    const kfScale = effect.keyframes.filter((k) => (k as { channel?: string }).channel === 'scale')
-    const scale = kfScale.length
-      ? (interpolateKeyframes(kfScale, clipTime) ?? 1)
-      : ((effect.params.scaleX as number | undefined) ?? 1)
-    const kfX = effect.keyframes.filter((k) => (k as { channel?: string }).channel === 'x')
-    const kfY = effect.keyframes.filter((k) => (k as { channel?: string }).channel === 'y')
-    const tx = kfX.length
-      ? (interpolateKeyframes(kfX, clipTime) ?? 0)
-      : ((effect.params.x as number | undefined) ?? 0)
-    const ty = kfY.length
-      ? (interpolateKeyframes(kfY, clipTime) ?? 0)
-      : ((effect.params.y as number | undefined) ?? 0)
-
-    ctx.save()
-    ctx.translate(width / 2 + tx, height / 2 + ty)
-    ctx.scale(scale, scale)
-    ctx.translate(-width / 2, -height / 2)
-    ctx.restore()
+    const transform = computeKenBurnsTransform(effect, clipTime)
+    // Apply transform without save/restore so that subsequent drawImage calls
+    // (e.g. video frame compositing) are rendered with the zoom/pan applied.
+    // The frame rendering loop is responsible for ctx.save() / ctx.restore().
+    applyKenBurnsTransform(ctx, transform, width, height)
   },
   toFFmpegFilter(effect, { width, height, fps }) {
-    const scale = (effect.params.scaleX as number | undefined) ?? 1
+    const scaleX = (effect.params.scaleX as number | undefined) ?? 1
+    const scaleY = (effect.params.scaleY as number | undefined) ?? 1
     const x = (effect.params.x as number | undefined) ?? 0
     const y = (effect.params.y as number | undefined) ?? 0
-    // Simple static zoompan filter (keyframe-driven version requires expression strings)
+    // Use average scale for the zoompan z parameter; separate scaleX/Y panning
+    // via x/y expressions. Static values used here; keyframe expressions would
+    // require building FFmpeg timeline expressions.
+    const scale = (scaleX + scaleY) / 2
     return `zoompan=z='${scale}':x='${x}':y='${y}':d=1:s=${width}x${height}:fps=${fps}`
   },
 })
