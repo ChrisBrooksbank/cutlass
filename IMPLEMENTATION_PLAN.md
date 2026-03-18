@@ -84,7 +84,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 ### Phase 6: Export
 
 - [x] Load FFmpeg.wasm in Web Worker; configure COOP/COEP headers in Vite; fallback to single-threaded core (spec: export.md)
-- [ ] Project-to-FFmpeg filter graph translation: multi-track compositing, speed, drawtext, zoompan, boxblur, xfade (spec: export.md)
+- [x] Project-to-FFmpeg filter graph translation: multi-track compositing, speed, drawtext, zoompan, boxblur, xfade (spec: export.md)
 - [ ] Export format selection: MP4 (H.264) and WebM (VP9); resolution presets 1080p/720p/480p + custom (spec: export.md)
 - [ ] Export progress UI: percentage bar parsed from FFmpeg stderr; cancel export mid-process (spec: export.md)
 - [ ] GIF export: two-pass palettegen + paletteuse pipeline with configurable FPS and width (spec: export.md)
