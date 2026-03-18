@@ -56,7 +56,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 - [x] MediaRecorder encoding WebM chunks; stream chunks to avoid memory issues on long recordings (spec: recording.md)
 - [x] Auto-create media asset (blob + thumbnail + duration) when recording stops and place on timeline (spec: recording.md)
 - [x] Voiceover recording via getUserMedia(audio) as separate audio track on timeline (spec: recording.md)
-- [ ] Cursor position capture via pointer events during recording; store timestamped coordinates (spec: recording.md)
+- [x] Cursor position capture via pointer events during recording; store timestamped coordinates (spec: recording.md)
 
 ### Phase 4: Audio
 

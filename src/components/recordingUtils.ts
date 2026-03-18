@@ -168,6 +168,77 @@ export function getPreferredAudioMimeType(): string {
 }
 
 /**
+ * A single captured cursor position relative to the recording start.
+ */
+export interface CursorPoint {
+  /** Seconds elapsed in the recording (excludes paused time). */
+  t: number
+  /** Viewport x coordinate (clientX). */
+  x: number
+  /** Viewport y coordinate (clientY). */
+  y: number
+}
+
+/**
+ * Controls for a cursor tracker attached to a DOM target.
+ */
+export interface CursorTracker {
+  /** Call when recording starts; resets internal state. */
+  start(): void
+  /** Call when recording is paused; stops accumulating time. */
+  pause(): void
+  /** Call when recording is resumed; resumes accumulating time. */
+  resume(): void
+  /** Call when recording stops; removes listener and returns all points. */
+  stop(): CursorPoint[]
+}
+
+/**
+ * Create a cursor tracker that captures pointer positions during recording.
+ * Listens to `pointermove` on `target` (defaults to `document`).
+ * Timestamps are relative to recording start, excluding paused intervals.
+ */
+export function createCursorTracker(
+  target: EventTarget = typeof document !== 'undefined' ? document : globalThis,
+): CursorTracker {
+  const points: CursorPoint[] = []
+  let recordingStartMs = 0
+  let pauseStartMs = 0
+  let totalPausedMs = 0
+  let active = false
+
+  function onPointerMove(event: Event): void {
+    if (!active) return
+    const e = event as PointerEvent
+    const t = (performance.now() - recordingStartMs - totalPausedMs) / 1000
+    points.push({ t, x: e.clientX, y: e.clientY })
+  }
+
+  target.addEventListener('pointermove', onPointerMove)
+
+  return {
+    start() {
+      recordingStartMs = performance.now()
+      totalPausedMs = 0
+      active = true
+    },
+    pause() {
+      active = false
+      pauseStartMs = performance.now()
+    },
+    resume() {
+      totalPausedMs += performance.now() - pauseStartMs
+      active = true
+    },
+    stop() {
+      active = false
+      target.removeEventListener('pointermove', onPointerMove)
+      return [...points]
+    },
+  }
+}
+
+/**
  * Compute the timeline insert time for a new voiceover clip.
  * Returns the end time of the last clip across all audio tracks,
  * or 0 if no audio clips exist.

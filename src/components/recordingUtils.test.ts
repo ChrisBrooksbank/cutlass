@@ -10,6 +10,7 @@ import {
   createChunkStorage,
   computeTimelineInsertTime,
   computeVoiceoverInsertTime,
+  createCursorTracker,
 } from './recordingUtils'
 import type { Track } from '@/store/types'
 
@@ -237,6 +238,100 @@ describe('computeVoiceoverInsertTime', () => {
       makeTrack('video', [{ startTime: 0, duration: 100 }]),
     ]
     expect(computeVoiceoverInsertTime(tracks)).toBe(5)
+  })
+})
+
+describe('createCursorTracker', () => {
+  let nowMs: number
+
+  beforeEach(() => {
+    nowMs = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => nowMs)
+  })
+
+  function firePointerMove(target: EventTarget, x: number, y: number): void {
+    target.dispatchEvent(Object.assign(new Event('pointermove'), { clientX: x, clientY: y }))
+  }
+
+  it('does not capture points before start() is called', () => {
+    const target = new EventTarget()
+    const tracker = createCursorTracker(target)
+    firePointerMove(target, 10, 20)
+    const points = tracker.stop()
+    expect(points).toHaveLength(0)
+  })
+
+  it('captures points after start()', () => {
+    const target = new EventTarget()
+    const tracker = createCursorTracker(target)
+    nowMs = 0
+    tracker.start()
+    nowMs = 1000
+    firePointerMove(target, 100, 200)
+    const points = tracker.stop()
+    expect(points).toHaveLength(1)
+    expect(points[0].t).toBeCloseTo(1)
+    expect(points[0].x).toBe(100)
+    expect(points[0].y).toBe(200)
+  })
+
+  it('does not capture points while paused', () => {
+    const target = new EventTarget()
+    const tracker = createCursorTracker(target)
+    nowMs = 0
+    tracker.start()
+    nowMs = 1000
+    tracker.pause()
+    nowMs = 2000
+    firePointerMove(target, 50, 50)
+    const points = tracker.stop()
+    expect(points).toHaveLength(0)
+  })
+
+  it('resumes capture after resume() and excludes paused duration from timestamps', () => {
+    const target = new EventTarget()
+    const tracker = createCursorTracker(target)
+    nowMs = 0
+    tracker.start()
+    nowMs = 1000
+    tracker.pause()
+    nowMs = 3000 // 2s paused
+    tracker.resume()
+    nowMs = 4000 // 1s after resume → effective time = 4000 - 0 - 2000 = 2000ms = 2s
+    firePointerMove(target, 75, 80)
+    const points = tracker.stop()
+    expect(points).toHaveLength(1)
+    expect(points[0].t).toBeCloseTo(2)
+  })
+
+  it('stops capturing after stop() and removes the listener', () => {
+    const target = new EventTarget()
+    const tracker = createCursorTracker(target)
+    nowMs = 0
+    tracker.start()
+    nowMs = 500
+    firePointerMove(target, 10, 10)
+    const points = tracker.stop()
+    expect(points).toHaveLength(1)
+    // Fire after stop — should not be captured
+    firePointerMove(target, 20, 20)
+    // stop() returns a snapshot; a new stop would return 0 events
+    expect(points).toHaveLength(1)
+  })
+
+  it('captures multiple points in order', () => {
+    const target = new EventTarget()
+    const tracker = createCursorTracker(target)
+    nowMs = 0
+    tracker.start()
+    nowMs = 500
+    firePointerMove(target, 1, 2)
+    nowMs = 1500
+    firePointerMove(target, 3, 4)
+    const points = tracker.stop()
+    expect(points).toHaveLength(2)
+    expect(points[0].t).toBeCloseTo(0.5)
+    expect(points[1].t).toBeCloseTo(1.5)
   })
 })
 
