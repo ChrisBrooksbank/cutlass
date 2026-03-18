@@ -70,7 +70,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 ### Phase 5: Effects & Annotations
 
 - [x] Keyframe data model: per-effect keyframes with easing types (linear, ease-in, ease-out, ease-in-out) (spec: effects-annotations.md)
-- [ ] Keyframe editor UI in properties panel: add/remove/move keyframes, easing curve selector (spec: effects-annotations.md)
+- [x] Keyframe editor UI in properties panel: add/remove/move keyframes, easing curve selector (spec: effects-annotations.md)
 - [ ] Effect registry: extensible map of effect-type → render/export handler (spec: effects-annotations.md)
 - [ ] Zoom/pan (Ken Burns) effect: keyframed scaleX/Y + x/y viewport transforms on preview canvas (spec: effects-annotations.md)
 - [ ] Blur/redact regions: draggable rectangles with configurable blur strength, keyframed position/size (spec: effects-annotations.md)
