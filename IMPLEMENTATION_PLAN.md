@@ -88,7 +88,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 - [x] Export format selection: MP4 (H.264) and WebM (VP9); resolution presets 1080p/720p/480p + custom (spec: export.md)
 - [x] Export progress UI: percentage bar parsed from FFmpeg stderr; cancel export mid-process (spec: export.md)
 - [x] GIF export: two-pass palettegen + paletteuse pipeline with configurable FPS and width (spec: export.md)
-- [ ] Thumbnail generation: seek to user-selected frame, export PNG via canvas.toDataURL (spec: export.md)
+- [x] Thumbnail generation: seek to user-selected frame, export PNG via canvas.toDataURL (spec: export.md)
 - [ ] Export dialog: format, resolution, quality preset, estimated file size, download trigger (spec: export.md)
 
 ---

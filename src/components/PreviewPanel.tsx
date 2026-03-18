@@ -21,6 +21,7 @@ import {
   computeShapeCircle,
   computeShapeArrow,
 } from '@/components/shapeAnnotationUtils'
+import { captureFrameFromVideo, downloadThumbnail } from '@/components/thumbnailUtils'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -804,6 +805,18 @@ export default function PreviewPanel() {
 
   const togglePlayback = () => setIsPlaying(!isPlaying)
 
+  const handleSaveThumbnail = () => {
+    const video = videoRef.current
+    if (!video) return
+    try {
+      const dataUrl = captureFrameFromVideo(video, projectWidth, projectHeight)
+      const timestamp = Math.round(currentTime * 100) / 100
+      downloadThumbnail(dataUrl, `thumbnail-${timestamp}s.png`)
+    } catch {
+      // Silently ignore if canvas capture is unavailable (e.g. cross-origin video)
+    }
+  }
+
   return (
     <div className="panel preview-panel" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="panel-header">Preview</div>
@@ -917,6 +930,23 @@ export default function PreviewPanel() {
             {isPlaying ? '⏸' : '▶'}
           </button>
           <span data-testid="preview-time">{formatTime(currentTime)}</span>
+          <button
+            onClick={handleSaveThumbnail}
+            aria-label="Save thumbnail"
+            data-testid="save-thumbnail-btn"
+            title="Save current frame as PNG"
+            style={{
+              background: 'none',
+              border: '1px solid #555',
+              color: '#fff',
+              borderRadius: '4px',
+              padding: '2px 8px',
+              cursor: 'pointer',
+              marginLeft: 'auto',
+            }}
+          >
+            Save Thumbnail
+          </button>
         </div>
       </div>
     </div>
