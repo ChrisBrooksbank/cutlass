@@ -1,3 +1,4 @@
+import type { Track } from '@/store/types'
 import { TRACK_HEIGHT, TRACK_HEADER_WIDTH } from './timelineUtils'
 
 /** Width of the trim handle hit area in pixels. */
@@ -116,4 +117,27 @@ export function computeTrimRight(
   const maxDelta = mediaDuration - originalSourceOut
   const clamped = Math.max(minDelta, Math.min(maxDelta, deltaTime))
   return { duration: originalDuration + clamped }
+}
+
+/**
+ * Collect snap targets for a clip being moved or trimmed.
+ * Includes all clip boundary times from all tracks except the specified clip,
+ * plus the current playhead time.
+ * Returns times sorted ascending.
+ */
+export function getSnapTargetsExcluding(
+  allTracks: Track[],
+  excludeClipId: string,
+  playheadTime: number,
+): number[] {
+  const times = new Set<number>()
+  times.add(playheadTime)
+  for (const track of allTracks) {
+    for (const clip of track.clips) {
+      if (clip.id === excludeClipId) continue
+      times.add(clip.startTime)
+      times.add(clip.startTime + clip.duration)
+    }
+  }
+  return Array.from(times).sort((a, b) => a - b)
 }

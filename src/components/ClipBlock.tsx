@@ -9,6 +9,7 @@ import {
   CLIP_PADDING,
   CLIP_CORNER_RADIUS,
   TRIM_HANDLE_WIDTH,
+  MIN_CLIP_DURATION,
   clipCanvasX,
   clipCanvasY,
   clipCanvasWidth,
@@ -16,7 +17,9 @@ import {
   canvasYToTrackIndex,
   computeTrimLeft,
   computeTrimRight,
+  getSnapTargetsExcluding,
 } from './clipBlockUtils'
+import { snapTime, SNAP_THRESHOLD_SEC } from './playheadUtils'
 
 interface TrimState {
   side: 'left' | 'right'
@@ -37,6 +40,7 @@ interface ClipBlockProps {
   mediaAsset: MediaAsset | undefined
   pixelsPerSecond: number
   scrollLeft: number
+  currentTime: number
   isSelected: boolean
   onSelect: (clipId: string, addToSelection: boolean) => void
   onMove: (clipId: string, targetTrackId: string, startTime: number) => void
@@ -57,6 +61,7 @@ export default function ClipBlock({
   mediaAsset,
   pixelsPerSecond,
   scrollLeft,
+  currentTime,
   isSelected,
   onSelect,
   onMove,
@@ -95,7 +100,9 @@ export default function ClipBlock({
 
   function handleDragEnd(e: Konva.KonvaEventObject<DragEvent>) {
     const node = e.target as Konva.Group
-    const newStartTime = canvasXToStartTime(node.x(), pixelsPerSecond, scrollLeft)
+    const rawStartTime = canvasXToStartTime(node.x(), pixelsPerSecond, scrollLeft)
+    const snapTargets = getSnapTargetsExcluding(allTracks, clip.id, currentTime)
+    const newStartTime = snapTime(rawStartTime, snapTargets, SNAP_THRESHOLD_SEC)
     const newTrackIndex = canvasYToTrackIndex(node.y(), allTracks.length)
     const targetTrack = allTracks[newTrackIndex]
 
@@ -130,8 +137,10 @@ export default function ClipBlock({
       currentDuration: clip.duration,
     }
 
-    // Capture clip.speed in closure so it stays consistent throughout the drag
+    // Capture clip.speed, allTracks, currentTime in closure so they stay consistent throughout the drag
     const speed = clip.speed
+    const capturedTracks = allTracks
+    const capturedCurrentTime = currentTime
 
     function onMouseMove() {
       const p = safeStage.getPointerPosition()
@@ -139,6 +148,7 @@ export default function ClipBlock({
 
       const deltaX = p.x - trimRef.current.startX
       const deltaTime = deltaX / pixelsPerSecond
+      const snapTargets = getSnapTargetsExcluding(capturedTracks, clip.id, capturedCurrentTime)
 
       if (side === 'left') {
         const result = computeTrimLeft(
@@ -147,9 +157,13 @@ export default function ClipBlock({
           trimRef.current.originalSourceIn,
           deltaTime,
         )
-        trimRef.current.currentStartTime = result.startTime
-        trimRef.current.currentDuration = result.duration
-        setTrimPreview({ startTime: result.startTime, duration: result.duration })
+        const originalRightEdge =
+          trimRef.current.originalStartTime + trimRef.current.originalDuration
+        const snappedStartTime = snapTime(result.startTime, snapTargets, SNAP_THRESHOLD_SEC)
+        const snappedDuration = Math.max(MIN_CLIP_DURATION, originalRightEdge - snappedStartTime)
+        trimRef.current.currentStartTime = snappedStartTime
+        trimRef.current.currentDuration = snappedDuration
+        setTrimPreview({ startTime: snappedStartTime, duration: snappedDuration })
       } else {
         const result = computeTrimRight(
           trimRef.current.originalDuration,
@@ -157,10 +171,16 @@ export default function ClipBlock({
           deltaTime,
           mediaDuration,
         )
-        trimRef.current.currentDuration = result.duration
+        const rawEndTime = trimRef.current.originalStartTime + result.duration
+        const snappedEndTime = snapTime(rawEndTime, snapTargets, SNAP_THRESHOLD_SEC)
+        const snappedDuration = Math.max(
+          MIN_CLIP_DURATION,
+          snappedEndTime - trimRef.current.originalStartTime,
+        )
+        trimRef.current.currentDuration = snappedDuration
         setTrimPreview({
           startTime: trimRef.current.originalStartTime,
-          duration: result.duration,
+          duration: snappedDuration,
         })
       }
     }

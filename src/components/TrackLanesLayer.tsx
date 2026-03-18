@@ -22,6 +22,7 @@ interface TrackLanesLayerProps {
   mediaAssets: MediaAsset[]
   pixelsPerSecond: number
   scrollLeft: number
+  currentTime: number
   selectedClipIds: string[]
   onSelectClip: (clipId: string, addToSelection: boolean) => void
   onMoveClip: (clipId: string, targetTrackId: string, startTime: number) => void
@@ -41,6 +42,7 @@ export default function TrackLanesLayer({
   mediaAssets,
   pixelsPerSecond,
   scrollLeft,
+  currentTime,
   selectedClipIds,
   onSelectClip,
   onMoveClip,
@@ -89,6 +91,7 @@ export default function TrackLanesLayer({
             mediaAsset={assetMap.get(clip.sourceId)}
             pixelsPerSecond={pixelsPerSecond}
             scrollLeft={scrollLeft}
+            currentTime={currentTime}
             isSelected={selectedClipIds.includes(clip.id)}
             onSelect={onSelectClip}
             onMove={onMoveClip}

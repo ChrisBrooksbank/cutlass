@@ -10,8 +10,34 @@ import {
   canvasYToTrackIndex,
   computeTrimLeft,
   computeTrimRight,
+  getSnapTargetsExcluding,
 } from './clipBlockUtils'
 import { TRACK_HEIGHT, TRACK_HEADER_WIDTH } from './timelineUtils'
+import type { Track } from '@/store/types'
+
+function makeTrack(
+  id: string,
+  clips: { id: string; startTime: number; duration: number }[],
+): Track {
+  return {
+    id,
+    type: 'video',
+    name: id,
+    muted: false,
+    locked: false,
+    clips: clips.map((c) => ({
+      id: c.id,
+      trackId: id,
+      sourceId: 'asset-1',
+      startTime: c.startTime,
+      duration: c.duration,
+      sourceIn: 0,
+      sourceOut: c.duration,
+      speed: 1,
+      effects: [],
+    })),
+  }
+}
 
 describe('CLIP_COLOR', () => {
   it('has entries for all track types', () => {
@@ -207,5 +233,62 @@ describe('computeTrimRight', () => {
   it('returns original duration when delta is 0', () => {
     const result = computeTrimRight(4, 6, 0, 20)
     expect(result.duration).toBeCloseTo(4)
+  })
+})
+
+describe('getSnapTargetsExcluding', () => {
+  it('always includes the playhead time', () => {
+    const targets = getSnapTargetsExcluding([], 'any', 3.5)
+    expect(targets).toContain(3.5)
+  })
+
+  it('returns only playhead when no tracks', () => {
+    expect(getSnapTargetsExcluding([], 'x', 2)).toEqual([2])
+  })
+
+  it('includes clip start and end times from other clips', () => {
+    const track = makeTrack('t1', [{ id: 'c1', startTime: 1, duration: 3 }])
+    const targets = getSnapTargetsExcluding([track], 'other', 0)
+    expect(targets).toContain(1) // start
+    expect(targets).toContain(4) // end (1+3)
+  })
+
+  it('excludes the specified clip boundaries', () => {
+    const track = makeTrack('t1', [
+      { id: 'c1', startTime: 1, duration: 3 },
+      { id: 'c2', startTime: 5, duration: 2 },
+    ])
+    const targets = getSnapTargetsExcluding([track], 'c1', 0)
+    expect(targets).not.toContain(1)
+    expect(targets).not.toContain(4)
+    expect(targets).toContain(5)
+    expect(targets).toContain(7)
+  })
+
+  it('returns targets sorted ascending', () => {
+    const track = makeTrack('t1', [
+      { id: 'c1', startTime: 5, duration: 2 },
+      { id: 'c2', startTime: 1, duration: 3 },
+    ])
+    const targets = getSnapTargetsExcluding([track], 'none', 0)
+    expect(targets).toEqual([0, 1, 4, 5, 7])
+  })
+
+  it('deduplicates when playhead coincides with a clip boundary', () => {
+    const track = makeTrack('t1', [{ id: 'c1', startTime: 2, duration: 3 }])
+    const targets = getSnapTargetsExcluding([track], 'none', 2)
+    // playhead=2 and clip start=2 → should appear once
+    expect(targets.filter((t) => t === 2)).toHaveLength(1)
+  })
+
+  it('collects boundaries across multiple tracks', () => {
+    const t1 = makeTrack('t1', [{ id: 'c1', startTime: 0, duration: 2 }])
+    const t2 = makeTrack('t2', [{ id: 'c2', startTime: 4, duration: 1 }])
+    const targets = getSnapTargetsExcluding([t1, t2], 'none', 10)
+    expect(targets).toContain(0)
+    expect(targets).toContain(2)
+    expect(targets).toContain(4)
+    expect(targets).toContain(5)
+    expect(targets).toContain(10)
   })
 })

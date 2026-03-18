@@ -180,6 +180,7 @@ export default function TimelinePanel() {
               mediaAssets={mediaAssets}
               pixelsPerSecond={pixelsPerSecond}
               scrollLeft={scrollLeft}
+              currentTime={currentTime}
               selectedClipIds={selectedClipIds}
               onSelectClip={selectClip}
               onMoveClip={moveClip}
