@@ -6,6 +6,10 @@ function getStore(): EditorStore {
   return useEditorStore.getState()
 }
 
+function getTemporal() {
+  return useEditorStore.temporal.getState()
+}
+
 function reset() {
   useEditorStore.setState({
     project: {
@@ -21,6 +25,7 @@ function reset() {
     selection: { selectedClipIds: [], selectedTrackId: null },
     ui: { pixelsPerSecond: 100, scrollLeft: 0 },
   })
+  getTemporal().clear()
 }
 
 beforeEach(reset)
@@ -407,5 +412,128 @@ describe('ui', () => {
   it('sets scroll left', () => {
     getStore().setScrollLeft(500)
     expect(getStore().ui.scrollLeft).toBe(500)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Undo / Redo (temporal middleware)
+// ---------------------------------------------------------------------------
+
+describe('undo/redo', () => {
+  it('undoes addTrack', () => {
+    getStore().addTrack('video')
+    expect(getStore().project.tracks).toHaveLength(1)
+
+    getTemporal().undo()
+    expect(getStore().project.tracks).toHaveLength(0)
+  })
+
+  it('redoes addTrack after undo', () => {
+    getStore().addTrack('video')
+    getTemporal().undo()
+    expect(getStore().project.tracks).toHaveLength(0)
+
+    getTemporal().redo()
+    expect(getStore().project.tracks).toHaveLength(1)
+  })
+
+  it('undoes removeTrack', () => {
+    getStore().addTrack('video')
+    const trackId = getStore().project.tracks[0].id
+    getStore().removeTrack(trackId)
+    expect(getStore().project.tracks).toHaveLength(0)
+
+    getTemporal().undo()
+    expect(getStore().project.tracks).toHaveLength(1)
+  })
+
+  it('undoes addClip', () => {
+    getStore().addTrack('video')
+    const trackId = getStore().project.tracks[0].id
+    getStore().addClip(trackId, {
+      sourceId: 'src1',
+      startTime: 0,
+      duration: 5,
+      sourceIn: 0,
+      sourceOut: 5,
+      speed: 1,
+      effects: [],
+    })
+    expect(getStore().project.tracks[0].clips).toHaveLength(1)
+
+    getTemporal().undo()
+    expect(getStore().project.tracks[0].clips).toHaveLength(0)
+  })
+
+  it('undoes moveClip', () => {
+    getStore().addTrack('video')
+    getStore().addTrack('audio')
+    const [videoTrackId, audioTrackId] = getStore().project.tracks.map((t) => t.id)
+    getStore().addClip(videoTrackId, {
+      sourceId: 'src1',
+      startTime: 0,
+      duration: 5,
+      sourceIn: 0,
+      sourceOut: 5,
+      speed: 1,
+      effects: [],
+    })
+    const clipId = getStore().project.tracks[0].clips[0].id
+    getStore().moveClip(clipId, audioTrackId, 10)
+    expect(getStore().project.tracks[0].clips).toHaveLength(0)
+    expect(getStore().project.tracks[1].clips).toHaveLength(1)
+
+    getTemporal().undo()
+    expect(getStore().project.tracks[0].clips).toHaveLength(1)
+    expect(getStore().project.tracks[1].clips).toHaveLength(0)
+  })
+
+  it('undoes splitClip', () => {
+    getStore().addTrack('video')
+    const trackId = getStore().project.tracks[0].id
+    getStore().addClip(trackId, {
+      sourceId: 'src1',
+      startTime: 0,
+      duration: 10,
+      sourceIn: 0,
+      sourceOut: 10,
+      speed: 1,
+      effects: [],
+    })
+    getStore().splitClip(getStore().project.tracks[0].clips[0].id, 5)
+    expect(getStore().project.tracks[0].clips).toHaveLength(2)
+
+    getTemporal().undo()
+    expect(getStore().project.tracks[0].clips).toHaveLength(1)
+  })
+
+  it('has empty past before any project changes', () => {
+    expect(getTemporal().pastStates).toHaveLength(0)
+  })
+
+  it('tracks past states after project changes', () => {
+    getStore().addTrack('video')
+    getStore().addTrack('audio')
+    expect(getTemporal().pastStates.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('does not record playback or ui changes as undoable', () => {
+    const before = getTemporal().pastStates.length
+    getStore().setCurrentTime(5)
+    getStore().setPixelsPerSecond(200)
+    // Playback/ui changes should not add to undo history
+    expect(getTemporal().pastStates).toHaveLength(before)
+  })
+
+  it('clears redo stack when a new action is performed after undo', () => {
+    getStore().addTrack('video')
+    getStore().addTrack('audio')
+    getTemporal().undo()
+    // futureStates should now have something
+    expect(getTemporal().futureStates.length).toBeGreaterThan(0)
+
+    // Perform a new project action — redo stack should be cleared
+    getStore().addTrack('annotation')
+    expect(getTemporal().futureStates).toHaveLength(0)
   })
 })

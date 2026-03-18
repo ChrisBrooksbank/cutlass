@@ -46,7 +46,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 - [x] Snap-to: clip edges, other clip boundaries, and playhead (spec: timeline-editing.md)
 - [x] Media bin panel: import video/audio/image files; drag onto timeline to create clips (spec: timeline-editing.md)
 - [x] Clip speed control (0.25x–4x) per clip with preview sync (spec: timeline-editing.md)
-- [ ] Undo/redo via Zustand temporal middleware for all timeline operations (spec: timeline-editing.md)
+- [x] Undo/redo via Zustand temporal middleware for all timeline operations (spec: timeline-editing.md)
 - [ ] Keyboard shortcuts: Space, J/K/L, I/O, S, Del, Ctrl+Z/Y (spec: timeline-editing.md)
 - [ ] Thumbnail preview inside video clip blocks (extracted via canvas seek) (spec: timeline-editing.md)
 
