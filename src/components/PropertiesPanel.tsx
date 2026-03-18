@@ -22,6 +22,7 @@ import {
   computeShapeCircle,
   computeShapeArrow,
 } from '@/components/shapeAnnotationUtils'
+import { computeCropRegion } from '@/components/cropUtils'
 
 // ---------------------------------------------------------------------------
 // Blur effect parameter editor
@@ -810,6 +811,137 @@ function ShapeArrowEditor({ clipId, effect }: { clipId: string; effect: Effect }
 }
 
 // ---------------------------------------------------------------------------
+// Crop effect parameter editor
+// ---------------------------------------------------------------------------
+
+function CropEffectEditor({ clipId, effect }: { clipId: string; effect: Effect }) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const removeEffect = useEditorStore((s) => s.removeEffect)
+
+  const region = computeCropRegion(effect)
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#1a1a1a',
+    border: '1px solid #333',
+    color: '#fff',
+    borderRadius: '3px',
+    padding: '2px 4px',
+    fontSize: '11px',
+  }
+  const labelStyle: React.CSSProperties = { color: '#666', marginBottom: '1px', fontSize: '10px' }
+
+  return (
+    <div
+      style={{
+        marginBottom: '8px',
+        border: '1px solid #333',
+        borderRadius: '4px',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 8px',
+          background: '#2a2a2a',
+          fontSize: '11px',
+          color: '#aaa',
+        }}
+      >
+        <span>Crop</span>
+        <button
+          data-testid={`remove-crop-${effect.id}`}
+          onClick={() => removeEffect(clipId, effect.id)}
+          title="Remove crop"
+          style={{
+            background: 'transparent',
+            border: '1px solid #444',
+            color: '#888',
+            borderRadius: '3px',
+            cursor: 'pointer',
+            padding: '2px 5px',
+            fontSize: '12px',
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      <div
+        style={{
+          padding: '6px 8px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '6px',
+        }}
+      >
+        <div>
+          <div style={labelStyle}>X</div>
+          <input
+            type="number"
+            data-testid={`crop-x-${effect.id}`}
+            value={region.x}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { x: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Y</div>
+          <input
+            type="number"
+            data-testid={`crop-y-${effect.id}`}
+            value={region.y}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { y: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Width</div>
+          <input
+            type="number"
+            data-testid={`crop-width-${effect.id}`}
+            value={region.width}
+            min={1}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                width: Math.max(1, parseFloat(e.target.value) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Height</div>
+          <input
+            type="number"
+            data-testid={`crop-height-${effect.id}`}
+            value={region.height}
+            min={1}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                height: Math.max(1, parseFloat(e.target.value) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Transition section (add / edit / remove transition at clip end)
 // ---------------------------------------------------------------------------
 
@@ -985,17 +1117,25 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
     })
   }
 
+  function handleAddCrop() {
+    const handler = getEffectHandler('crop')
+    if (!handler) return
+    addEffect(clipId, { type: 'crop', params: { ...handler.defaultParams }, keyframes: [] })
+  }
+
   const blurEffects = effects.filter((e) => e.type === 'blur')
   const textEffects = effects.filter((e) => e.type === 'text')
   const rectEffects = effects.filter((e) => e.type === 'shape-rect')
   const circleEffects = effects.filter((e) => e.type === 'shape-circle')
   const arrowEffects = effects.filter((e) => e.type === 'shape-arrow')
+  const cropEffects = effects.filter((e) => e.type === 'crop')
   const hasEffects =
     blurEffects.length > 0 ||
     textEffects.length > 0 ||
     rectEffects.length > 0 ||
     circleEffects.length > 0 ||
-    arrowEffects.length > 0
+    arrowEffects.length > 0 ||
+    cropEffects.length > 0
 
   const btnStyle: React.CSSProperties = {
     fontSize: '11px',
@@ -1051,6 +1191,9 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
           >
             + Arrow
           </button>
+          <button data-testid="add-crop-effect" onClick={handleAddCrop} style={btnStyle}>
+            + Crop
+          </button>
         </div>
       </div>
 
@@ -1074,6 +1217,9 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
           ))}
           {arrowEffects.map((e) => (
             <ShapeArrowEditor key={e.id} clipId={clipId} effect={e} />
+          ))}
+          {cropEffects.map((e) => (
+            <CropEffectEditor key={e.id} clipId={clipId} effect={e} />
           ))}
         </>
       )}

@@ -10,6 +10,7 @@ import {
   renderShapeCircle,
   renderShapeArrow,
 } from './shapeAnnotationUtils'
+import { computeCropRegion } from './cropUtils'
 
 // ---------------------------------------------------------------------------
 // Context types passed to each handler
@@ -286,24 +287,18 @@ registerEffect({
   displayName: 'Crop',
   defaultParams: { x: 0, y: 0, width: 1920, height: 1080 },
   render(renderCtx, effect) {
-    const { ctx } = renderCtx
-    const cx = (effect.params.x as number | undefined) ?? 0
-    const cy = (effect.params.y as number | undefined) ?? 0
-    const cw = (effect.params.width as number | undefined) ?? renderCtx.width
-    const ch = (effect.params.height as number | undefined) ?? renderCtx.height
+    const { ctx, width, height } = renderCtx
+    const { x, y, width: cw, height: ch } = computeCropRegion(effect, width, height)
 
     ctx.save()
     // Apply clip path to constrain rendering to the crop region
     ctx.beginPath()
-    ctx.rect(cx, cy, cw, ch)
+    ctx.rect(x, y, cw, ch)
     ctx.clip()
     ctx.restore()
   },
   toFFmpegFilter(effect) {
-    const cx = (effect.params.x as number | undefined) ?? 0
-    const cy = (effect.params.y as number | undefined) ?? 0
-    const cw = (effect.params.width as number | undefined) ?? 1920
-    const ch = (effect.params.height as number | undefined) ?? 1080
-    return `crop=${cw}:${ch}:${cx}:${cy}`
+    const { x, y, width, height } = computeCropRegion(effect)
+    return `crop=${width}:${height}:${x}:${y}`
   },
 })
