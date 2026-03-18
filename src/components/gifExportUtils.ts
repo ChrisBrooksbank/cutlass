@@ -21,6 +21,8 @@ export interface GifExportSettings {
    * lanczos filter with aspect-ratio preservation (-1 sentinel).
    */
   width: number
+  /** Optional duration in seconds to limit encoding length. */
+  duration?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -58,7 +60,12 @@ export function buildGifPalettegenFilter(settings: GifExportSettings): string {
  *   ['-vf', 'fps=10,scale=480:-1:flags=lanczos,palettegen', '-y']
  */
 export function buildGifPalettegenArgs(settings: GifExportSettings): string[] {
-  return ['-vf', buildGifPalettegenFilter(settings), '-y']
+  const args: string[] = []
+  if (settings.duration != null) {
+    args.push('-t', String(settings.duration))
+  }
+  args.push('-vf', buildGifPalettegenFilter(settings), '-y')
+  return args
 }
 
 // ---------------------------------------------------------------------------
@@ -91,7 +98,12 @@ export function buildGifPaletteUseFilter(settings: GifExportSettings): string {
  *   ['-lavfi', 'fps=10,scale=480:-1:flags=lanczos [x]; [x][1:v] paletteuse', '-y']
  */
 export function buildGifPaletteUseArgs(settings: GifExportSettings): string[] {
-  return ['-lavfi', buildGifPaletteUseFilter(settings), '-y']
+  const args: string[] = []
+  if (settings.duration != null) {
+    args.push('-t', String(settings.duration))
+  }
+  args.push('-lavfi', buildGifPaletteUseFilter(settings), '-y')
+  return args
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import type { ExportFormat, ResolutionPreset } from '@/components/exportFormatUtils'
-import { FORMAT_LABELS } from '@/components/exportFormatUtils'
+import { FORMAT_LABELS, getFormatCodecArgs, getFormatMimeType } from '@/components/exportFormatUtils'
 import type { QualityPreset } from '@/components/exportDialogUtils'
 import {
   QUALITY_PRESETS,
@@ -10,7 +10,19 @@ import {
   getResolutionLabel,
   buildExportFilename,
 } from '@/components/exportDialogUtils'
-import { GIF_DEFAULT_FPS, GIF_DEFAULT_WIDTH } from '@/components/gifExportUtils'
+import {
+  GIF_DEFAULT_FPS,
+  GIF_DEFAULT_WIDTH,
+  buildGifPalettegenArgs,
+  buildGifPaletteUseArgs,
+} from '@/components/gifExportUtils'
+import type { GifExportSettings } from '@/components/gifExportUtils'
+import { loadFFmpeg } from '@/components/ffmpegLoader'
+import { buildFFmpegArgs, collectInputs } from '@/components/filterGraphUtils'
+import { progressRatioToPercent } from '@/components/exportProgressUtils'
+import { getEffectHandler } from '@/components/effectRegistry'
+import { useEditorStore } from '@/store'
+import { fetchFile } from '@ffmpeg/util'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,6 +35,28 @@ interface ExportDialogProps {
 }
 
 type ExportType = 'video' | 'gif'
+type ExportStatus = 'idle' | 'loading' | 'exporting' | 'done' | 'error'
+
+// ---------------------------------------------------------------------------
+// Canvas-only effect detection
+// ---------------------------------------------------------------------------
+
+const CANVAS_ONLY_EFFECTS = new Set(['cursor', 'shape-circle', 'shape-arrow'])
+
+function detectCanvasOnlyEffects(project: { tracks: { clips: { effects: { type: string }[] }[] }[] }): string[] {
+  const found = new Set<string>()
+  for (const track of project.tracks) {
+    for (const clip of track.clips) {
+      for (const effect of clip.effects) {
+        const handler = getEffectHandler(effect.type)
+        if (CANVAS_ONLY_EFFECTS.has(effect.type) || (handler && handler.toFFmpegFilter(effect as never, { clipIndex: 0, width: 0, height: 0, fps: 0 }) === null)) {
+          found.add(handler?.displayName ?? effect.type)
+        }
+      }
+    }
+  }
+  return [...found]
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -144,6 +178,32 @@ const exportBtnStyle: React.CSSProperties = {
   fontWeight: 600,
 }
 
+const progressBarOuter: React.CSSProperties = {
+  width: '100%',
+  height: 6,
+  background: '#1a1a1a',
+  borderRadius: 3,
+  overflow: 'hidden',
+}
+
+const warningBoxStyle: React.CSSProperties = {
+  background: '#2a2000',
+  border: '1px solid #6b5b00',
+  borderRadius: 4,
+  padding: '8px 12px',
+  fontSize: 12,
+  color: '#e0c040',
+}
+
+const errorBoxStyle: React.CSSProperties = {
+  background: '#2a0000',
+  border: '1px solid #6b0000',
+  borderRadius: 4,
+  padding: '8px 12px',
+  fontSize: 12,
+  color: '#ff6060',
+}
+
 const VIDEO_FORMATS: ExportFormat[] = ['mp4', 'webm']
 const RESOLUTION_PRESETS: ResolutionPreset[] = ['1080p', '720p', '480p', 'custom']
 const QUALITY_PRESET_KEYS: QualityPreset[] = ['high', 'medium', 'low']
@@ -158,6 +218,15 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
   const [gifFps, setGifFps] = useState(GIF_DEFAULT_FPS)
   const [gifWidth, setGifWidth] = useState(GIF_DEFAULT_WIDTH)
 
+  const [exportStatus, setExportStatus] = useState<ExportStatus>('idle')
+  const [progress, setProgress] = useState(0)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const abortRef = useRef(false)
+
+  const project = useEditorStore((s) => s.project)
+
+  const canvasOnlyEffects = useMemo(() => detectCanvasOnlyEffects(project), [project])
+
   const estimatedBytes =
     exportType === 'gif'
       ? estimateGifFileSizeBytes(durationSec, { fps: gifFps, width: gifWidth })
@@ -166,34 +235,154 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
   const filename =
     exportType === 'gif' ? `export-${gifWidth}px.gif` : buildExportFilename(format, preset)
 
-  const handleDownload = useCallback(() => {
-    // Build a minimal placeholder blob download to demonstrate the trigger.
-    // In a real implementation this would receive the encoded buffer from the
-    // FFmpeg export pipeline.
-    const mimeType =
-      exportType === 'gif' ? 'image/gif' : format === 'mp4' ? 'video/mp4' : 'video/webm'
-    const blob = new Blob([], { type: mimeType })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    onClose()
-  }, [exportType, format, filename, onClose])
+  const isExporting = exportStatus === 'loading' || exportStatus === 'exporting'
+
+  const handleDownload = useCallback(async () => {
+    abortRef.current = false
+    setExportStatus('loading')
+    setProgress(0)
+    setErrorMessage(null)
+
+    try {
+      // Load FFmpeg
+      const ffmpeg = await loadFFmpeg({
+        onProgress: (event) => {
+          if (!abortRef.current) {
+            setProgress(progressRatioToPercent(event.progress))
+          }
+        },
+      })
+
+      if (abortRef.current) return
+
+      setExportStatus('exporting')
+
+      // Write source media files to FFmpeg's virtual FS
+      const inputs = collectInputs(project)
+      for (let i = 0; i < inputs.length; i++) {
+        const inputName = `input${i}${getExtFromUrl(inputs[i].url)}`
+        const data = await fetchFile(inputs[i].url)
+        await ffmpeg.writeFile(inputName, data)
+      }
+
+      if (abortRef.current) return
+
+      if (exportType === 'gif') {
+        // GIF two-pass pipeline
+        const gifSettings: GifExportSettings = {
+          fps: gifFps,
+          width: gifWidth,
+          duration: durationSec > 0 ? durationSec : undefined,
+        }
+
+        // Pass 1: palettegen
+        const paletteArgs = [
+          ...inputs.flatMap((_, i) => ['-i', `input${i}${getExtFromUrl(inputs[i].url)}`]),
+          ...buildGifPalettegenArgs(gifSettings),
+          'palette.png',
+        ]
+        await ffmpeg.exec(paletteArgs)
+
+        if (abortRef.current) return
+
+        // Pass 2: paletteuse
+        const gifArgs = [
+          ...inputs.flatMap((_, i) => ['-i', `input${i}${getExtFromUrl(inputs[i].url)}`]),
+          '-i', 'palette.png',
+          ...buildGifPaletteUseArgs(gifSettings),
+          'output.gif',
+        ]
+        await ffmpeg.exec(gifArgs)
+
+        if (abortRef.current) return
+
+        const outputData = await ffmpeg.readFile('output.gif')
+        const blob = new Blob([outputData], { type: 'image/gif' })
+        triggerDownload(blob, filename)
+      } else {
+        // Video export (MP4/WebM)
+        const ffmpegArgs = buildFFmpegArgs(project)
+
+        // Build the full command
+        const args: string[] = []
+
+        // Input files
+        for (let i = 0; i < inputs.length; i++) {
+          args.push('-i', `input${i}${getExtFromUrl(inputs[i].url)}`)
+        }
+
+        // Filter complex (if any)
+        if (ffmpegArgs.filterComplex) {
+          args.push('-filter_complex', ffmpegArgs.filterComplex)
+        }
+
+        // Map video output
+        if (ffmpegArgs.videoMap) {
+          args.push('-map', ffmpegArgs.videoMap)
+        }
+
+        // Map audio output
+        if (ffmpegArgs.audioMap) {
+          args.push('-map', ffmpegArgs.audioMap)
+        }
+
+        // Codec args
+        const codecArgs = getFormatCodecArgs(format)
+        args.push(...codecArgs)
+
+        // Duration limit
+        if (durationSec > 0) {
+          args.push('-t', String(durationSec))
+        }
+
+        const outputFilename = `output.${format}`
+        args.push('-y', outputFilename)
+
+        await ffmpeg.exec(args)
+
+        if (abortRef.current) return
+
+        const outputData = await ffmpeg.readFile(outputFilename)
+        const mimeType = getFormatMimeType(format)
+        const blob = new Blob([outputData], { type: mimeType })
+        triggerDownload(blob, filename)
+      }
+
+      setExportStatus('done')
+      setProgress(100)
+    } catch (err) {
+      if (abortRef.current) return
+      const msg = err instanceof Error ? err.message : String(err)
+      setErrorMessage(msg)
+      setExportStatus('error')
+    }
+  }, [exportType, format, filename, project, durationSec, gifFps, gifWidth])
+
+  const handleCancel = useCallback(() => {
+    if (isExporting) {
+      abortRef.current = true
+      setExportStatus('idle')
+      setProgress(0)
+    } else {
+      onClose()
+    }
+  }, [isExporting, onClose])
 
   function chip(label: string, active: boolean, onClick: () => void) {
     return (
-      <button key={label} style={active ? chipActiveStyle : chipBase} onClick={onClick}>
+      <button
+        key={label}
+        style={active ? chipActiveStyle : chipBase}
+        onClick={onClick}
+        disabled={isExporting}
+      >
         {label}
       </button>
     )
   }
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
+    <div style={overlayStyle} onClick={isExporting ? undefined : onClose}>
       <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={headerStyle}>
@@ -207,7 +396,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
               fontSize: 18,
               lineHeight: 1,
             }}
-            onClick={onClose}
+            onClick={handleCancel}
             aria-label="Close export dialog"
           >
             ×
@@ -257,6 +446,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                       value={customWidth}
                       onChange={(e) => setCustomWidth(Number(e.target.value))}
                       style={inputStyle}
+                      disabled={isExporting}
                     />
                   </div>
                   <div style={{ flex: 1 }}>
@@ -268,6 +458,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                       value={customHeight}
                       onChange={(e) => setCustomHeight(Number(e.target.value))}
                       style={inputStyle}
+                      disabled={isExporting}
                     />
                   </div>
                 </div>
@@ -298,6 +489,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                 value={gifWidth}
                 onChange={(e) => setGifWidth(Number(e.target.value))}
                 style={inputStyle}
+                disabled={isExporting}
               />
             </div>
 
@@ -311,6 +503,14 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           </>
         )}
 
+        {/* Canvas-only effect warning */}
+        {canvasOnlyEffects.length > 0 && (
+          <div style={warningBoxStyle}>
+            The following effects are preview-only and will not appear in the export:{' '}
+            {canvasOnlyEffects.join(', ')}
+          </div>
+        )}
+
         {/* Estimated file size */}
         <div style={estimateBoxStyle}>
           <span>Estimated size</span>
@@ -319,16 +519,81 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           </span>
         </div>
 
+        {/* Progress bar */}
+        {isExporting && (
+          <div>
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
+              {exportStatus === 'loading' ? 'Loading FFmpeg...' : `Exporting... ${Math.round(progress)}%`}
+            </div>
+            <div style={progressBarOuter}>
+              <div
+                style={{
+                  width: `${exportStatus === 'loading' ? 100 : progress}%`,
+                  height: '100%',
+                  background: '#2563eb',
+                  borderRadius: 3,
+                  transition: 'width 0.3s',
+                  animation: exportStatus === 'loading' ? 'pulse 1.5s infinite' : undefined,
+                  opacity: exportStatus === 'loading' ? 0.5 : 1,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Error message */}
+        {exportStatus === 'error' && errorMessage && (
+          <div style={errorBoxStyle}>{errorMessage}</div>
+        )}
+
+        {/* Done message */}
+        {exportStatus === 'done' && (
+          <div style={{ fontSize: 13, color: '#60d060' }}>Export complete!</div>
+        )}
+
         {/* Actions */}
         <div style={actionRowStyle}>
-          <button style={cancelBtnStyle} onClick={onClose}>
-            Cancel
+          <button style={cancelBtnStyle} onClick={handleCancel}>
+            {isExporting ? 'Cancel' : 'Close'}
           </button>
-          <button style={exportBtnStyle} onClick={handleDownload}>
-            Download {filename}
+          <button
+            style={{
+              ...exportBtnStyle,
+              opacity: isExporting ? 0.6 : 1,
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+            }}
+            onClick={handleDownload}
+            disabled={isExporting}
+          >
+            {isExporting ? 'Exporting...' : `Download ${filename}`}
           </button>
         </div>
       </div>
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getExtFromUrl(url: string): string {
+  try {
+    const pathname = new URL(url, 'http://localhost').pathname
+    const ext = pathname.substring(pathname.lastIndexOf('.'))
+    return ext || '.mp4'
+  } catch {
+    return '.mp4'
+  }
+}
+
+function triggerDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }

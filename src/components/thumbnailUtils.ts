@@ -53,21 +53,32 @@ export function extractVideoThumbnail(
     }
 
     video.onseeked = () => {
-      try {
-        const canvas = document.createElement('canvas') as HTMLCanvasElement
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          reject(new Error('Could not get 2d canvas context'))
-          return
+      const draw = () => {
+        try {
+          const canvas = document.createElement('canvas') as HTMLCanvasElement
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            reject(new Error('Could not get 2d canvas context'))
+            return
+          }
+          ctx.drawImage(video, 0, 0, width, height)
+          const dataUrl = canvas.toDataURL('image/jpeg')
+          thumbnailCache.set(cacheKey, dataUrl)
+          resolve(dataUrl)
+        } catch (err) {
+          reject(err)
         }
-        ctx.drawImage(video, 0, 0, width, height)
-        const dataUrl = canvas.toDataURL('image/jpeg')
-        thumbnailCache.set(cacheKey, dataUrl)
-        resolve(dataUrl)
-      } catch (err) {
-        reject(err)
+      }
+
+      // Use requestVideoFrameCallback when available to ensure the frame is
+      // fully decoded/painted before capturing. Fall back to rAF.
+      if ('requestVideoFrameCallback' in video) {
+        (video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => void })
+          .requestVideoFrameCallback(draw)
+      } else {
+        requestAnimationFrame(draw)
       }
     }
 

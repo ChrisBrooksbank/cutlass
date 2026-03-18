@@ -121,15 +121,23 @@ export async function loadFFmpeg(options: FFmpegLoadOptions = {}): Promise<FFmpe
   const useMultiThread = supportsSharedArrayBuffer()
   const rawURLs = buildFFmpegCoreURLs(useMultiThread, options.mtCoreBase, options.stCoreBase)
 
-  // Convert raw URLs to Blob URLs so the browser can load them across origins.
-  const coreURL = await toBlobURL(rawURLs.coreURL, 'text/javascript')
-  const wasmURL = await toBlobURL(rawURLs.wasmURL, 'application/wasm')
+  try {
+    // Convert raw URLs to Blob URLs so the browser can load them across origins.
+    const coreURL = await toBlobURL(rawURLs.coreURL, 'text/javascript')
+    const wasmURL = await toBlobURL(rawURLs.wasmURL, 'application/wasm')
 
-  if (useMultiThread && rawURLs.workerURL) {
-    const workerURL = await toBlobURL(rawURLs.workerURL, 'text/javascript')
-    await ffmpeg.load({ coreURL, wasmURL, workerURL })
-  } else {
-    await ffmpeg.load({ coreURL, wasmURL })
+    if (useMultiThread && rawURLs.workerURL) {
+      const workerURL = await toBlobURL(rawURLs.workerURL, 'text/javascript')
+      await ffmpeg.load({ coreURL, wasmURL, workerURL })
+    } else {
+      await ffmpeg.load({ coreURL, wasmURL })
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(
+      `Failed to load FFmpeg: ${message}. ` +
+      'This may be caused by network issues, CORS restrictions, or an unsupported browser.',
+    )
   }
 
   return ffmpeg

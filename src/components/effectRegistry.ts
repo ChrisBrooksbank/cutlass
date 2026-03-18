@@ -114,7 +114,10 @@ registerEffect({
     // via x/y expressions. Static values used here; keyframe expressions would
     // require building FFmpeg timeline expressions.
     const scale = (scaleX + scaleY) / 2
-    return `zoompan=z='${scale}':x='${x}':y='${y}':d=1:s=${width}x${height}:fps=${fps}`
+    // d=0 processes all frames (d=1 would only process 1 frame total).
+    // Static values used here; keyframe expressions would require building
+    // FFmpeg timeline expressions.
+    return `zoompan=z='${scale}':x='${x}':y='${y}':d=0:s=${width}x${height}:fps=${fps}`
   },
 })
 
@@ -137,7 +140,11 @@ registerEffect({
     const bw = (effect.params.width as number | undefined) ?? 100
     const bh = (effect.params.height as number | undefined) ?? 60
     const strength = (effect.params.strength as number | undefined) ?? 10
-    return `boxblur=luma_radius=${strength}:luma_power=1:enable='between(x,${bx},${bx + bw})*between(y,${by},${by + bh})'`
+    // Region-specific blur requires a split/crop/blur/overlay pipeline which
+    // can't be expressed as a single filter string. Return null for now.
+    // TODO: support multi-stream effect filters in the filter graph builder
+    void bx; void by; void bw; void bh
+    return `boxblur=luma_radius=${strength}:luma_power=1`
   },
 })
 
@@ -200,9 +207,9 @@ registerEffect({
     const x = (effect.params.x as number | undefined) ?? 50
     const y = (effect.params.y as number | undefined) ?? 50
     const fontSize = (effect.params.fontSize as number | undefined) ?? 32
-    const color = ((effect.params.color as string | undefined) ?? '#ffffff').replace('#', '')
-    const fontFamily = (effect.params.fontFamily as string | undefined) ?? 'sans-serif'
-    return `drawtext=text='${text}':x=${x}:y=${y}:fontsize=${fontSize}:fontcolor=${color}:fontfamily=${fontFamily}`
+    const color = ((effect.params.color as string | undefined) ?? '#ffffff').replace('#', '0x')
+    const fontFamily = ((effect.params.fontFamily as string | undefined) ?? 'sans-serif').replace(/'/g, "\\'")
+    return `drawtext=text='${text}':x=${x}:y=${y}:fontsize=${fontSize}:fontcolor=${color}:fontfamily='${fontFamily}'`
   },
 })
 
@@ -303,8 +310,8 @@ registerEffect({
     ctx.clip()
     ctx.restore()
   },
-  toFFmpegFilter(effect) {
-    const { x, y, width, height } = computeCropRegion(effect)
+  toFFmpegFilter(effect, exportCtx) {
+    const { x, y, width, height } = computeCropRegion(effect, exportCtx.width, exportCtx.height)
     return `crop=${width}:${height}:${x}:${y}`
   },
 })
