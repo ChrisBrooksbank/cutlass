@@ -25,6 +25,7 @@ function makeTrack(
     name: id,
     muted: false,
     locked: false,
+    volume: 1,
     clips: clips.map((c) => ({
       id: c.id,
       trackId: id,

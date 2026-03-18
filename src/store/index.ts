@@ -33,6 +33,7 @@ interface EditorActions {
   reorderTracks: (trackIds: string[]) => void
   setTrackMuted: (trackId: string, muted: boolean) => void
   setTrackLocked: (trackId: string, locked: boolean) => void
+  setTrackVolume: (trackId: string, volume: number) => void
   renameTrack: (trackId: string, name: string) => void
 
   // Clips
@@ -167,6 +168,7 @@ export const useEditorStore = create<EditorStore>()(
             name: name ?? defaultTrackName(type, index),
             muted: false,
             locked: false,
+            volume: 1,
             clips: [],
           }
           return {
@@ -232,6 +234,19 @@ export const useEditorStore = create<EditorStore>()(
             tracks: updateTrackInProject(state.project.tracks, trackId, (t) => ({
               ...t,
               locked,
+            })),
+          },
+        }))
+      },
+
+      setTrackVolume: (trackId, volume) => {
+        const clamped = Math.min(1, Math.max(0, volume))
+        set((state) => ({
+          project: {
+            ...state.project,
+            tracks: updateTrackInProject(state.project.tracks, trackId, (t) => ({
+              ...t,
+              volume: clamped,
             })),
           },
         }))

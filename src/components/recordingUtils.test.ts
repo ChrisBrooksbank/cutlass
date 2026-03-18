@@ -24,6 +24,7 @@ function makeTrack(
     name: type,
     muted: false,
     locked: false,
+    volume: 1,
     clips: clips.map((c) => ({
       id: crypto.randomUUID(),
       trackId: '',

@@ -9,6 +9,7 @@ function makeTrack(clips: { id: string; startTime: number; duration: number }[])
     name: 'Video 1',
     muted: false,
     locked: false,
+    volume: 1,
     clips: clips.map((c) => ({
       ...c,
       trackId: 't1',

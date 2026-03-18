@@ -27,6 +27,7 @@ function TrackHeaderRow({ track, index, total }: TrackHeaderRowProps) {
 
   const setTrackMuted = useEditorStore((s) => s.setTrackMuted)
   const setTrackLocked = useEditorStore((s) => s.setTrackLocked)
+  const setTrackVolume = useEditorStore((s) => s.setTrackVolume)
   const removeTrack = useEditorStore((s) => s.removeTrack)
   const reorderTracks = useEditorStore((s) => s.reorderTracks)
   const renameTrack = useEditorStore((s) => s.renameTrack)
@@ -184,6 +185,28 @@ function TrackHeaderRow({ track, index, total }: TrackHeaderRowProps) {
       >
         ^
       </button>
+
+      {/* Volume slider */}
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={track.volume}
+        title={`Volume: ${Math.round(track.volume * 100)}%`}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          e.stopPropagation()
+          setTrackVolume(track.id, parseFloat(e.target.value))
+        }}
+        style={{
+          width: 44,
+          height: 12,
+          cursor: 'pointer',
+          flexShrink: 0,
+          accentColor: '#3b82f6',
+        }}
+      />
 
       {/* Mute toggle */}
       <button

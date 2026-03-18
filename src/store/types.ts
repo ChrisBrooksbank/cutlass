@@ -36,6 +36,7 @@ export interface Track {
   name: string
   muted: boolean
   locked: boolean
+  volume: number // 0–1, default 1
   clips: Clip[]
 }
 

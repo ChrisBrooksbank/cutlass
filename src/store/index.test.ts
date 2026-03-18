@@ -112,6 +112,29 @@ describe('tracks', () => {
     expect(track.locked).toBe(true)
   })
 
+  it('new tracks have volume 1 by default', () => {
+    getStore().addTrack('audio')
+    expect(getStore().project.tracks[0].volume).toBe(1)
+  })
+
+  it('setTrackVolume updates track volume', () => {
+    getStore().addTrack('audio')
+    const trackId = getStore().project.tracks[0].id
+    getStore().setTrackVolume(trackId, 0.5)
+    expect(getStore().project.tracks[0].volume).toBe(0.5)
+  })
+
+  it('setTrackVolume clamps volume to [0, 1]', () => {
+    getStore().addTrack('audio')
+    const trackId = getStore().project.tracks[0].id
+
+    getStore().setTrackVolume(trackId, 1.5)
+    expect(getStore().project.tracks[0].volume).toBe(1)
+
+    getStore().setTrackVolume(trackId, -0.2)
+    expect(getStore().project.tracks[0].volume).toBe(0)
+  })
+
   it('renames a track', () => {
     getStore().addTrack('video')
     const trackId = getStore().project.tracks[0].id
