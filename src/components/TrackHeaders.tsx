@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useEditorStore } from '@/store'
 import type { Track, TrackType } from '@/store/types'
 import { TRACK_HEIGHT } from './timelineUtils'
+import VUMeter from './VUMeter'
 
 const TYPE_COLOR: Record<TrackType, string> = {
   video: '#3b82f6',
@@ -19,9 +20,10 @@ interface TrackHeaderRowProps {
   track: Track
   index: number
   total: number
+  analyserNode?: AnalyserNode | null
 }
 
-function TrackHeaderRow({ track, index, total }: TrackHeaderRowProps) {
+function TrackHeaderRow({ track, index, total, analyserNode }: TrackHeaderRowProps) {
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(track.name)
 
@@ -185,6 +187,11 @@ function TrackHeaderRow({ track, index, total }: TrackHeaderRowProps) {
       >
         ^
       </button>
+
+      {/* VU meter (audio tracks only) */}
+      {track.type === 'audio' && (
+        <VUMeter analyserNode={analyserNode} width={6} height={TRACK_HEIGHT - 12} />
+      )}
 
       {/* Volume slider */}
       <input

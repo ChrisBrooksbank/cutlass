@@ -46,6 +46,7 @@ describe('applyTrackGain', () => {
       disconnectTrack: vi.fn(),
       setGain: vi.fn(),
       getGainNode: vi.fn(),
+      getAnalyserNode: vi.fn(),
       dispose: vi.fn(),
     }
   }

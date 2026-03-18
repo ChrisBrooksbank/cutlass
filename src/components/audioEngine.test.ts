@@ -5,6 +5,15 @@ import { createAudioRoutingGraph } from './audioEngine'
 // Minimal AudioContext mock
 // ---------------------------------------------------------------------------
 
+function makeAnalyserNode() {
+  return {
+    fftSize: 2048,
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    getByteTimeDomainData: vi.fn(),
+  }
+}
+
 function makeGainNode() {
   return {
     gain: { value: 1 },
@@ -26,6 +35,7 @@ function makeAudioContext() {
     destination,
     close: vi.fn().mockResolvedValue(undefined),
     createGain: vi.fn(() => makeGainNode()),
+    createAnalyser: vi.fn(() => makeAnalyserNode()),
     createMediaElementSource: vi.fn(() => makeMediaElementSource()),
   }
   return context
@@ -57,7 +67,7 @@ describe('createAudioRoutingGraph', () => {
     expect(graph.context).toBe(mockCtx)
   })
 
-  it('connectTrack creates source and gain nodes wired together', () => {
+  it('connectTrack creates source, gain, and analyser nodes wired together', () => {
     const graph = makeGraph()
     const el = makeElement()
 
@@ -65,13 +75,17 @@ describe('createAudioRoutingGraph', () => {
 
     expect(mockCtx.createMediaElementSource).toHaveBeenCalledWith(el)
     expect(mockCtx.createGain).toHaveBeenCalledTimes(1)
+    expect(mockCtx.createAnalyser).toHaveBeenCalledTimes(1)
 
     // Source should connect to gain
     const source = mockCtx.createMediaElementSource.mock.results[0].value
     const gain = mockCtx.createGain.mock.results[0].value
+    const analyser = mockCtx.createAnalyser.mock.results[0].value
     expect(source.connect).toHaveBeenCalledWith(gain)
-    // Gain should connect to destination
-    expect(gain.connect).toHaveBeenCalledWith(mockCtx.destination)
+    // Gain should connect to analyser
+    expect(gain.connect).toHaveBeenCalledWith(analyser)
+    // Analyser should connect to destination
+    expect(analyser.connect).toHaveBeenCalledWith(mockCtx.destination)
   })
 
   it('getGainNode returns the GainNode after connectTrack', () => {
@@ -86,6 +100,20 @@ describe('createAudioRoutingGraph', () => {
   it('getGainNode returns undefined for unknown trackId', () => {
     const graph = makeGraph()
     expect(graph.getGainNode('unknown')).toBeUndefined()
+  })
+
+  it('getAnalyserNode returns the AnalyserNode after connectTrack', () => {
+    const graph = makeGraph()
+    graph.connectTrack('t1', makeElement())
+
+    const analyserNode = graph.getAnalyserNode('t1')
+    expect(analyserNode).toBeDefined()
+    expect(analyserNode).toBe(mockCtx.createAnalyser.mock.results[0].value)
+  })
+
+  it('getAnalyserNode returns undefined for unknown trackId', () => {
+    const graph = makeGraph()
+    expect(graph.getAnalyserNode('unknown')).toBeUndefined()
   })
 
   it('setGain updates gain.gain.value', () => {
@@ -110,12 +138,15 @@ describe('createAudioRoutingGraph', () => {
 
     const source = mockCtx.createMediaElementSource.mock.results[0].value
     const gain = mockCtx.createGain.mock.results[0].value
+    const analyser = mockCtx.createAnalyser.mock.results[0].value
 
     graph.disconnectTrack('t1')
 
     expect(source.disconnect).toHaveBeenCalled()
     expect(gain.disconnect).toHaveBeenCalled()
+    expect(analyser.disconnect).toHaveBeenCalled()
     expect(graph.getGainNode('t1')).toBeUndefined()
+    expect(graph.getAnalyserNode('t1')).toBeUndefined()
   })
 
   it('disconnectTrack is a no-op for unconnected tracks', () => {
@@ -132,20 +163,25 @@ describe('createAudioRoutingGraph', () => {
 
     const source1 = mockCtx.createMediaElementSource.mock.results[0].value
     const gain1 = mockCtx.createGain.mock.results[0].value
+    const analyser1 = mockCtx.createAnalyser.mock.results[0].value
 
     graph.connectTrack('t1', el2)
 
     // Old nodes should be disconnected
     expect(source1.disconnect).toHaveBeenCalled()
     expect(gain1.disconnect).toHaveBeenCalled()
+    expect(analyser1.disconnect).toHaveBeenCalled()
 
     // New nodes created
     expect(mockCtx.createMediaElementSource).toHaveBeenCalledTimes(2)
     expect(mockCtx.createGain).toHaveBeenCalledTimes(2)
+    expect(mockCtx.createAnalyser).toHaveBeenCalledTimes(2)
 
-    // getGainNode returns the new gain
+    // getGainNode and getAnalyserNode return the new nodes
     const gain2 = mockCtx.createGain.mock.results[1].value
+    const analyser2 = mockCtx.createAnalyser.mock.results[1].value
     expect(graph.getGainNode('t1')).toBe(gain2)
+    expect(graph.getAnalyserNode('t1')).toBe(analyser2)
   })
 
   it('dispose disconnects all tracks and closes the context', () => {
@@ -155,16 +191,20 @@ describe('createAudioRoutingGraph', () => {
 
     const sources = mockCtx.createMediaElementSource.mock.results.map((r) => r.value)
     const gains = mockCtx.createGain.mock.results.map((r) => r.value)
+    const analysers = mockCtx.createAnalyser.mock.results.map((r) => r.value)
 
     graph.dispose()
 
     for (const s of sources) expect(s.disconnect).toHaveBeenCalled()
     for (const g of gains) expect(g.disconnect).toHaveBeenCalled()
+    for (const a of analysers) expect(a.disconnect).toHaveBeenCalled()
     expect(mockCtx.close).toHaveBeenCalled()
 
     // All tracks should be gone after dispose
     expect(graph.getGainNode('t1')).toBeUndefined()
     expect(graph.getGainNode('t2')).toBeUndefined()
+    expect(graph.getAnalyserNode('t1')).toBeUndefined()
+    expect(graph.getAnalyserNode('t2')).toBeUndefined()
   })
 
   it('supports multiple independent tracks', () => {

@@ -12,6 +12,7 @@
 export interface TrackAudioNodes {
   source: MediaElementAudioSourceNode
   gain: GainNode
+  analyser: AnalyserNode
 }
 
 export interface AudioRoutingGraph {
@@ -44,6 +45,12 @@ export interface AudioRoutingGraph {
   getGainNode(trackId: string): GainNode | undefined
 
   /**
+   * Get the AnalyserNode for a connected track, or undefined if not connected.
+   * The AnalyserNode sits after the GainNode and can be used for VU metering.
+   */
+  getAnalyserNode(trackId: string): AnalyserNode | undefined
+
+  /**
    * Disconnect all tracks and close the AudioContext.
    */
   dispose(): void
@@ -72,16 +79,20 @@ export function createAudioRoutingGraph(
       if (existing) {
         existing.source.disconnect()
         existing.gain.disconnect()
+        existing.analyser.disconnect()
         trackNodes.delete(trackId)
       }
 
       const source = context.createMediaElementSource(element)
       const gain = context.createGain()
+      const analyser = context.createAnalyser()
+      analyser.fftSize = 256
 
       source.connect(gain)
-      gain.connect(context.destination)
+      gain.connect(analyser)
+      analyser.connect(context.destination)
 
-      trackNodes.set(trackId, { source, gain })
+      trackNodes.set(trackId, { source, gain, analyser })
     },
 
     disconnectTrack(trackId: string): void {
@@ -90,6 +101,7 @@ export function createAudioRoutingGraph(
 
       nodes.source.disconnect()
       nodes.gain.disconnect()
+      nodes.analyser.disconnect()
       trackNodes.delete(trackId)
     },
 
@@ -103,10 +115,15 @@ export function createAudioRoutingGraph(
       return trackNodes.get(trackId)?.gain
     },
 
+    getAnalyserNode(trackId: string): AnalyserNode | undefined {
+      return trackNodes.get(trackId)?.analyser
+    },
+
     dispose(): void {
       for (const nodes of trackNodes.values()) {
         nodes.source.disconnect()
         nodes.gain.disconnect()
+        nodes.analyser.disconnect()
       }
       trackNodes.clear()
       void context.close()
