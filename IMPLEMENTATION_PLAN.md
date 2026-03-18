@@ -9,6 +9,7 @@
 ## Notes
 
 ### Architecture Decisions
+
 - **Framework**: React + TypeScript + Vite
 - **State**: Zustand (with temporal middleware for undo/redo)
 - **Timeline renderer**: Konva.js (canvas-based)
@@ -17,6 +18,7 @@
 - **Recording**: getDisplayMedia + MediaRecorder (WebM chunks)
 
 ### Dependency Order
+
 Project scaffold → State + layout → Timeline core → Recording → Audio → Effects → Export
 
 ---
@@ -25,7 +27,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 
 ### Phase 1: Project Scaffold & Layout
 
-- [ ] Scaffold Vite + React + TypeScript project with ESLint, Prettier, and path aliases (spec: timeline-editing.md)
+- [x] Scaffold Vite + React + TypeScript project with ESLint, Prettier, and path aliases (spec: timeline-editing.md)
 - [ ] Install core dependencies: Zustand, Konva/react-konva, @ffmpeg/ffmpeg, @ffmpeg/util (spec: timeline-editing.md)
 - [ ] Define core Zustand store: project state, tracks, clips, playhead, selection (spec: timeline-editing.md)
 - [ ] Build app shell layout: media bin (left), preview (top-right), properties panel (right), timeline (bottom) (spec: timeline-editing.md)

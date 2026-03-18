@@ -1,0 +1,8 @@
+dist
+node_modules
+temp-vite
+specs
+plan.md
+PROMPT_build.md
+PROMPT_plan.md
+AGENTS.md
