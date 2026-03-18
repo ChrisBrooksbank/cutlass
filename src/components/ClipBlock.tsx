@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Group, Image as KonvaImage, Rect, Text } from 'react-konva'
+import { Group, Image as KonvaImage, Line, Rect, Text } from 'react-konva'
 import type Konva from 'konva'
 import type { Clip, MediaAsset, Track } from '@/store/types'
 import { TRACK_HEIGHT, TRACK_HEADER_WIDTH } from './timelineUtils'
@@ -21,6 +21,7 @@ import {
 } from './clipBlockUtils'
 import { snapTime, SNAP_THRESHOLD_SEC } from './playheadUtils'
 import { extractVideoThumbnail } from './thumbnailUtils'
+import { extractAudioWaveform, computeWaveformPoints } from './waveformUtils'
 
 interface TrimState {
   side: 'left' | 'right'
@@ -75,6 +76,7 @@ export default function ClipBlock({
     duration: number
   } | null>(null)
   const [thumbnailImg, setThumbnailImg] = useState<HTMLImageElement | null>(null)
+  const [waveformData, setWaveformData] = useState<Float32Array | null>(null)
 
   // Extract thumbnail for video clips from the source media at sourceIn
   useEffect(() => {
@@ -96,6 +98,22 @@ export default function ClipBlock({
       cancelled = true
     }
   }, [track.type, mediaAsset?.url, clip.sourceIn])
+
+  // Extract waveform for audio clips
+  useEffect(() => {
+    if (track.type !== 'audio' || !mediaAsset?.url) return
+    let cancelled = false
+    extractAudioWaveform(mediaAsset.url)
+      .then((data) => {
+        if (!cancelled) setWaveformData(data)
+      })
+      .catch(() => {
+        // Waveform unavailable — clip renders without it
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [track.type, mediaAsset?.url])
 
   const effectiveStartTime = trimPreview?.startTime ?? clip.startTime
   const effectiveDuration = trimPreview?.duration ?? clip.duration
@@ -302,6 +320,37 @@ export default function ClipBlock({
             height={innerH}
             image={thumbnailImg}
             opacity={0.45}
+            listening={false}
+          />
+        </Group>
+      )}
+
+      {/* Waveform: audio clips only, shown when clip is wide enough and data available */}
+      {waveformData && innerW > 20 && (
+        <Group
+          x={CLIP_PADDING}
+          y={CLIP_PADDING}
+          clipFunc={(ctx) => {
+            const r = CLIP_CORNER_RADIUS
+            ctx.beginPath()
+            ctx.moveTo(r, 0)
+            ctx.lineTo(innerW - r, 0)
+            ctx.arcTo(innerW, 0, innerW, r, r)
+            ctx.lineTo(innerW, innerH - r)
+            ctx.arcTo(innerW, innerH, innerW - r, innerH, r)
+            ctx.lineTo(r, innerH)
+            ctx.arcTo(0, innerH, 0, innerH - r, r)
+            ctx.lineTo(0, r)
+            ctx.arcTo(0, 0, r, 0, r)
+            ctx.closePath()
+          }}
+        >
+          <Line
+            points={computeWaveformPoints(waveformData, innerW, innerH)}
+            closed
+            fill="rgba(255,255,255,0.3)"
+            stroke="rgba(255,255,255,0.5)"
+            strokeWidth={0.5}
             listening={false}
           />
         </Group>
