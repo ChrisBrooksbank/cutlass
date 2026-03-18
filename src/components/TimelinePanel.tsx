@@ -4,6 +4,7 @@ import { useEditorStore } from '@/store'
 import type { TrackType } from '@/store/types'
 import { zoomAroundPoint, RULER_HEIGHT, TRACK_HEADER_WIDTH, getTracksHeight } from './timelineUtils'
 import { getClipBoundaryTimes, snapTime, SNAP_THRESHOLD_SEC } from './playheadUtils'
+import { getSplitCandidates } from './splitUtils'
 import TimeRuler from './TimeRuler'
 import TrackLanesLayer from './TrackLanesLayer'
 import TrackHeaders from './TrackHeaders'
@@ -35,6 +36,7 @@ export default function TimelinePanel() {
   const trimClip = useEditorStore((s) => s.trimClip)
   const currentTime = useEditorStore((s) => s.playback.currentTime)
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime)
+  const splitClip = useEditorStore((s) => s.splitClip)
 
   useEffect(() => {
     const el = containerRef.current
@@ -78,6 +80,13 @@ export default function TimelinePanel() {
     [tracks, setCurrentTime],
   )
 
+  const handleSplit = useCallback(() => {
+    const candidates = getSplitCandidates(tracks, selectedClipIds, currentTime)
+    for (const clipId of candidates) {
+      splitClip(clipId, currentTime)
+    }
+  }, [tracks, selectedClipIds, currentTime, splitClip])
+
   const tracksHeight = getTracksHeight(tracks.length)
   const stageHeight = Math.max(size.height, RULER_HEIGHT + tracksHeight)
 
@@ -86,6 +95,22 @@ export default function TimelinePanel() {
       <div className="panel-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span>Timeline</span>
         <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+          <button
+            onClick={handleSplit}
+            title="Split clip at playhead (S)"
+            style={{
+              fontSize: 11,
+              padding: '2px 8px',
+              borderRadius: 4,
+              border: '1px solid #374151',
+              background: '#1e293b',
+              color: '#9ca3af',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Split
+          </button>
           {ADD_TRACK_TYPES.map(({ type, label }) => (
             <button
               key={type}

@@ -41,7 +41,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 - [x] Clip blocks: colored rectangles with drag-to-move within and across tracks (spec: timeline-editing.md)
 - [x] Trim handles: drag left/right clip edges to adjust in/out points (spec: timeline-editing.md)
 - [x] Draggable playhead that snaps to clip boundaries and syncs preview position (spec: timeline-editing.md)
-- [ ] Split tool: split clip at playhead into two independent clips (spec: timeline-editing.md)
+- [x] Split tool: split clip at playhead into two independent clips (spec: timeline-editing.md)
 - [ ] Delete selected clip(s) (spec: timeline-editing.md)
 - [ ] Snap-to: clip edges, other clip boundaries, and playhead (spec: timeline-editing.md)
 - [ ] Media bin panel: import video/audio/image files; drag onto timeline to create clips (spec: timeline-editing.md)
