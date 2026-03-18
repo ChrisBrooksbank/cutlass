@@ -1,6 +1,7 @@
 import type { Effect } from '@/store/types'
 import { interpolateKeyframes } from './keyframeUtils'
 import { computeKenBurnsTransform, applyKenBurnsTransform } from './kenBurnsUtils'
+import { computeBlurRegion, renderBlurRegion } from './blurUtils'
 
 // ---------------------------------------------------------------------------
 // Context types passed to each handler
@@ -112,29 +113,8 @@ registerEffect({
   defaultParams: { x: 0, y: 0, width: 100, height: 60, strength: 10 },
   render(renderCtx, effect) {
     const { ctx, clipTime } = renderCtx
-    const kfX = effect.keyframes.filter((k) => (k as { channel?: string }).channel === 'x')
-    const kfY = effect.keyframes.filter((k) => (k as { channel?: string }).channel === 'y')
-    const kfW = effect.keyframes.filter((k) => (k as { channel?: string }).channel === 'width')
-    const kfH = effect.keyframes.filter((k) => (k as { channel?: string }).channel === 'height')
-    const bx = kfX.length
-      ? (interpolateKeyframes(kfX, clipTime) ?? 0)
-      : ((effect.params.x as number | undefined) ?? 0)
-    const by = kfY.length
-      ? (interpolateKeyframes(kfY, clipTime) ?? 0)
-      : ((effect.params.y as number | undefined) ?? 0)
-    const bw = kfW.length
-      ? (interpolateKeyframes(kfW, clipTime) ?? 100)
-      : ((effect.params.width as number | undefined) ?? 100)
-    const bh = kfH.length
-      ? (interpolateKeyframes(kfH, clipTime) ?? 60)
-      : ((effect.params.height as number | undefined) ?? 60)
-    const strength = (effect.params.strength as number | undefined) ?? 10
-
-    ctx.save()
-    ctx.filter = `blur(${strength}px)`
-    ctx.fillStyle = 'rgba(0,0,0,0)' // transparent — real blur requires offscreen canvas in full impl
-    ctx.fillRect(bx, by, bw, bh)
-    ctx.restore()
+    const region = computeBlurRegion(effect, clipTime)
+    renderBlurRegion(ctx, region)
   },
   toFFmpegFilter(effect) {
     const bx = (effect.params.x as number | undefined) ?? 0

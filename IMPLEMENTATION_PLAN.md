@@ -73,7 +73,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 - [x] Keyframe editor UI in properties panel: add/remove/move keyframes, easing curve selector (spec: effects-annotations.md)
 - [x] Effect registry: extensible map of effect-type → render/export handler (spec: effects-annotations.md)
 - [x] Zoom/pan (Ken Burns) effect: keyframed scaleX/Y + x/y viewport transforms on preview canvas (spec: effects-annotations.md)
-- [ ] Blur/redact regions: draggable rectangles with configurable blur strength, keyframed position/size (spec: effects-annotations.md)
+- [x] Blur/redact regions: draggable rectangles with configurable blur strength, keyframed position/size (spec: effects-annotations.md)
 - [ ] Cursor highlight overlay: replay captured cursor data as animated circle/spotlight on preview canvas (spec: effects-annotations.md)
 - [ ] Text overlays: place text on preview canvas, edit font/size/color/position (spec: effects-annotations.md)
 - [ ] Shape annotations: arrows, rectangles, circles on annotation layer (spec: effects-annotations.md)

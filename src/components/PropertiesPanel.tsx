@@ -8,6 +8,222 @@ import {
   getEffectDisplayName,
   sortKeyframesByTime,
 } from '@/components/keyframeEditorUtils'
+import { getEffectHandler } from '@/components/effectRegistry'
+
+// ---------------------------------------------------------------------------
+// Blur effect parameter editor
+// ---------------------------------------------------------------------------
+
+function BlurEffectEditor({ clipId, effect }: { clipId: string; effect: Effect }) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const removeEffect = useEditorStore((s) => s.removeEffect)
+
+  const p = effect.params
+  const x = (p.x as number | undefined) ?? 0
+  const y = (p.y as number | undefined) ?? 0
+  const width = (p.width as number | undefined) ?? 100
+  const height = (p.height as number | undefined) ?? 60
+  const strength = (p.strength as number | undefined) ?? 10
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#1a1a1a',
+    border: '1px solid #333',
+    color: '#fff',
+    borderRadius: '3px',
+    padding: '2px 4px',
+    fontSize: '11px',
+  }
+  const labelStyle: React.CSSProperties = { color: '#666', marginBottom: '1px', fontSize: '10px' }
+
+  return (
+    <div
+      style={{
+        marginBottom: '8px',
+        border: '1px solid #333',
+        borderRadius: '4px',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 8px',
+          background: '#2a2a2a',
+          fontSize: '11px',
+          color: '#aaa',
+        }}
+      >
+        <span>Blur / Redact</span>
+        <button
+          data-testid={`remove-blur-${effect.id}`}
+          onClick={() => removeEffect(clipId, effect.id)}
+          title="Remove blur effect"
+          style={{
+            background: 'transparent',
+            border: '1px solid #444',
+            color: '#888',
+            borderRadius: '3px',
+            cursor: 'pointer',
+            padding: '2px 5px',
+            fontSize: '12px',
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      <div
+        style={{
+          padding: '6px 8px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '6px',
+        }}
+      >
+        <div>
+          <div style={labelStyle}>X</div>
+          <input
+            type="number"
+            data-testid={`blur-x-${effect.id}`}
+            value={x}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { x: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Y</div>
+          <input
+            type="number"
+            data-testid={`blur-y-${effect.id}`}
+            value={y}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { y: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Width</div>
+          <input
+            type="number"
+            data-testid={`blur-width-${effect.id}`}
+            value={width}
+            min={1}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                width: Math.max(1, parseFloat(e.target.value) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Height</div>
+          <input
+            type="number"
+            data-testid={`blur-height-${effect.id}`}
+            value={height}
+            min={1}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                height: Math.max(1, parseFloat(e.target.value) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+
+      <div style={{ padding: '0 8px 6px' }}>
+        <div style={labelStyle}>Strength: {strength}px</div>
+        <input
+          type="range"
+          data-testid={`blur-strength-${effect.id}`}
+          min={1}
+          max={50}
+          step={1}
+          value={strength}
+          onChange={(e) =>
+            updateEffectParams(clipId, effect.id, { strength: parseInt(e.target.value, 10) })
+          }
+          style={{ width: '100%' }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Effects section (add / manage effects per clip)
+// ---------------------------------------------------------------------------
+
+function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[] }) {
+  const addEffect = useEditorStore((s) => s.addEffect)
+
+  function handleAddBlur() {
+    const handler = getEffectHandler('blur')
+    if (!handler) return
+    addEffect(clipId, { type: 'blur', params: { ...handler.defaultParams }, keyframes: [] })
+  }
+
+  const blurEffects = effects.filter((e) => e.type === 'blur')
+
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '8px',
+        }}
+      >
+        <div
+          style={{
+            fontSize: '11px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            color: '#888',
+          }}
+        >
+          Effects
+        </div>
+        <button
+          data-testid="add-blur-effect"
+          onClick={handleAddBlur}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            background: '#333',
+            border: '1px solid #555',
+            color: '#ccc',
+            borderRadius: '3px',
+            cursor: 'pointer',
+          }}
+        >
+          + Blur
+        </button>
+      </div>
+
+      {blurEffects.length === 0 ? (
+        <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic', marginBottom: '8px' }}>
+          No effects
+        </div>
+      ) : (
+        blurEffects.map((e) => <BlurEffectEditor key={e.id} clipId={clipId} effect={e} />)
+      )}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Keyframe editor for a single effect
@@ -317,6 +533,11 @@ function ClipProperties({ clipId }: { clipId: string }) {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Effects section */}
+      <div style={{ marginBottom: '12px' }}>
+        <EffectsSection clipId={clipId} effects={clip.effects} />
       </div>
 
       {/* Keyframe editor */}

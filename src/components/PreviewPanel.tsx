@@ -1,21 +1,189 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useEditorStore } from '@/store'
-import type { MediaAsset } from '@/store'
+import type { Effect, MediaAsset } from '@/store'
 import {
   findActiveVideoClip,
   sourceTimeForClip,
   projectDuration,
   formatTime,
 } from '@/components/previewUtils'
+import { computeBlurRegion } from '@/components/blurUtils'
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+interface DisplayInfo {
+  scale: number
+  offsetX: number
+  offsetY: number
+}
+
+function computeDisplayInfo(
+  containerWidth: number,
+  containerHeight: number,
+  projectWidth: number,
+  projectHeight: number,
+): DisplayInfo {
+  const scale = Math.min(containerWidth / projectWidth, containerHeight / projectHeight)
+  const offsetX = (containerWidth - projectWidth * scale) / 2
+  const offsetY = (containerHeight - projectHeight * scale) / 2
+  return { scale, offsetX, offsetY }
+}
+
+// ---------------------------------------------------------------------------
+// Draggable blur region overlay element
+// ---------------------------------------------------------------------------
+
+function BlurRect({
+  clipId,
+  effect,
+  displayInfo,
+  clipTime,
+}: {
+  clipId: string
+  effect: Effect
+  displayInfo: DisplayInfo
+  clipTime: number
+}) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const dragRef = useRef<{
+    startMouseX: number
+    startMouseY: number
+    startX: number
+    startY: number
+  } | null>(null)
+
+  const region = computeBlurRegion(effect, clipTime)
+  const { scale, offsetX, offsetY } = displayInfo
+
+  const left = offsetX + region.x * scale
+  const top = offsetY + region.y * scale
+  const width = region.width * scale
+  const height = region.height * scale
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      dragRef.current = {
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        startX: region.x,
+        startY: region.y,
+      }
+
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!dragRef.current) return
+        const dx = (ev.clientX - dragRef.current.startMouseX) / scale
+        const dy = (ev.clientY - dragRef.current.startMouseY) / scale
+        updateEffectParams(clipId, effect.id, {
+          x: Math.round(dragRef.current.startX + dx),
+          y: Math.round(dragRef.current.startY + dy),
+        })
+      }
+
+      const onMouseUp = () => {
+        dragRef.current = null
+        window.removeEventListener('mousemove', onMouseMove)
+        window.removeEventListener('mouseup', onMouseUp)
+      }
+
+      window.addEventListener('mousemove', onMouseMove)
+      window.addEventListener('mouseup', onMouseUp)
+    },
+    [clipId, effect.id, region.x, region.y, scale, updateEffectParams],
+  )
+
+  return (
+    <div
+      data-testid={`blur-overlay-${effect.id}`}
+      onMouseDown={handleMouseDown}
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        width,
+        height,
+        backdropFilter: `blur(${Math.min(region.strength, 20)}px)`,
+        WebkitBackdropFilter: `blur(${Math.min(region.strength, 20)}px)`,
+        border: '2px dashed rgba(255, 200, 0, 0.8)',
+        boxSizing: 'border-box',
+        cursor: 'move',
+        pointerEvents: 'all',
+      }}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Blur overlay layer for all blur effects on the active clip
+// ---------------------------------------------------------------------------
+
+function BlurOverlay({
+  clipId,
+  effects,
+  containerRef,
+  projectWidth,
+  projectHeight,
+  clipTime,
+}: {
+  clipId: string
+  effects: Effect[]
+  containerRef: React.RefObject<HTMLDivElement | null>
+  projectWidth: number
+  projectHeight: number
+  clipTime: number
+}) {
+  const [displayInfo, setDisplayInfo] = useState<DisplayInfo>({ scale: 1, offsetX: 0, offsetY: 0 })
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const update = () => {
+      setDisplayInfo(
+        computeDisplayInfo(el.clientWidth, el.clientHeight, projectWidth, projectHeight),
+      )
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [containerRef, projectWidth, projectHeight])
+
+  const blurEffects = effects.filter((e) => e.type === 'blur')
+  if (blurEffects.length === 0) return null
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      {blurEffects.map((effect) => (
+        <BlurRect
+          key={effect.id}
+          clipId={clipId}
+          effect={effect}
+          displayInfo={displayInfo}
+          clipTime={clipTime}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// PreviewPanel
+// ---------------------------------------------------------------------------
 
 export default function PreviewPanel() {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   const lastWallRef = useRef<number | null>(null)
   const currentAssetRef = useRef<MediaAsset | null>(null)
 
   const tracks = useEditorStore((s) => s.project.tracks)
   const mediaAssets = useEditorStore((s) => s.project.mediaAssets)
+  const projectWidth = useEditorStore((s) => s.project.width)
+  const projectHeight = useEditorStore((s) => s.project.height)
   const currentTime = useEditorStore((s) => s.playback.currentTime)
   const isPlaying = useEditorStore((s) => s.playback.isPlaying)
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime)
@@ -25,6 +193,9 @@ export default function PreviewPanel() {
   const activeAsset = activeClip
     ? (mediaAssets.find((a) => a.id === activeClip.sourceId) ?? null)
     : null
+
+  // Clip time relative to clip start (for keyframe evaluation)
+  const clipTime = activeClip ? Math.max(0, currentTime - activeClip.startTime) : 0
 
   // Sync video src when active asset changes
   useEffect(() => {
@@ -112,12 +283,24 @@ export default function PreviewPanel() {
         className="panel-body"
         style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#000' }}
       >
-        <video
-          ref={videoRef}
-          data-testid="preview-video"
-          style={{ flex: 1, width: '100%', objectFit: 'contain' }}
-          playsInline
-        />
+        <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          <video
+            ref={videoRef}
+            data-testid="preview-video"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            playsInline
+          />
+          {activeClip && (
+            <BlurOverlay
+              clipId={activeClip.id}
+              effects={activeClip.effects}
+              containerRef={containerRef}
+              projectWidth={projectWidth}
+              projectHeight={projectHeight}
+              clipTime={clipTime}
+            />
+          )}
+        </div>
         <div
           style={{
             display: 'flex',

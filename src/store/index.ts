@@ -72,6 +72,7 @@ interface EditorActions {
   // Effects
   addEffect: (clipId: string, effect: Omit<Effect, 'id'>) => string
   removeEffect: (clipId: string, effectId: string) => void
+  updateEffectParams: (clipId: string, effectId: string, params: Record<string, unknown>) => void
 
   // Keyframes
   addKeyframe: (clipId: string, effectId: string, keyframe: Omit<Keyframe, 'id'>) => string
@@ -527,6 +528,20 @@ export const useEditorStore = create<EditorStore>()(
             tracks: updateClipInTracks(state.project.tracks, clipId, (c) => ({
               ...c,
               effects: c.effects.filter((e) => e.id !== effectId),
+            })),
+          },
+        }))
+      },
+
+      updateEffectParams: (clipId, effectId, params) => {
+        set((state) => ({
+          project: {
+            ...state.project,
+            tracks: updateClipInTracks(state.project.tracks, clipId, (c) => ({
+              ...c,
+              effects: c.effects.map((e) =>
+                e.id === effectId ? { ...e, params: { ...e.params, ...params } } : e,
+              ),
             })),
           },
         }))
