@@ -60,7 +60,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 
 ### Phase 4: Audio
 
-- [ ] Web Audio API routing graph: each track through GainNode to destination (spec: audio.md)
+- [x] Web Audio API routing graph: each track through GainNode to destination (spec: audio.md)
 - [ ] Per-track volume slider (0–1) with real-time gain adjustment; per-track mute toggle (spec: audio.md)
 - [ ] Audio waveform extraction: pre-compute Float32Array and render inside audio clip blocks (spec: audio.md)
 - [ ] Background music: user uploads audio file, placed on dedicated audio track (spec: audio.md)
