@@ -7,6 +7,10 @@ import {
   getRulerTickInterval,
   getRulerTicks,
   formatRulerTime,
+  getTrackY,
+  getTracksHeight,
+  TRACK_HEIGHT,
+  TRACK_HEADER_WIDTH,
   PPS_MIN,
   PPS_MAX,
 } from './timelineUtils'
@@ -145,6 +149,40 @@ describe('formatRulerTime', () => {
 
   it('formats time 0 as 0s', () => {
     expect(formatRulerTime(0, 1)).toBe('0s')
+  })
+})
+
+describe('getTrackY', () => {
+  it('returns 0 for the first track', () => {
+    expect(getTrackY(0)).toBe(0)
+  })
+
+  it('returns TRACK_HEIGHT for the second track', () => {
+    expect(getTrackY(1)).toBe(TRACK_HEIGHT)
+  })
+
+  it('returns index * TRACK_HEIGHT for any track', () => {
+    expect(getTrackY(3)).toBe(3 * TRACK_HEIGHT)
+  })
+})
+
+describe('getTracksHeight', () => {
+  it('returns 0 for zero tracks', () => {
+    expect(getTracksHeight(0)).toBe(0)
+  })
+
+  it('returns TRACK_HEIGHT for one track', () => {
+    expect(getTracksHeight(1)).toBe(TRACK_HEIGHT)
+  })
+
+  it('returns count * TRACK_HEIGHT', () => {
+    expect(getTracksHeight(5)).toBe(5 * TRACK_HEIGHT)
+  })
+})
+
+describe('TRACK_HEADER_WIDTH', () => {
+  it('is a positive number', () => {
+    expect(TRACK_HEADER_WIDTH).toBeGreaterThan(0)
   })
 })
 

@@ -2,6 +2,18 @@ export const PPS_MIN = 10 // pixels per second minimum
 export const PPS_MAX = 2000 // pixels per second maximum
 
 export const RULER_HEIGHT = 24 // px height of the time ruler
+export const TRACK_HEIGHT = 48 // px height of each track row
+export const TRACK_HEADER_WIDTH = 160 // px width of the track header column
+
+/** Return the Y position of a track row relative to the tracks area (below the ruler). */
+export function getTrackY(trackIndex: number): number {
+  return trackIndex * TRACK_HEIGHT
+}
+
+/** Return the total canvas height needed for all tracks. */
+export function getTracksHeight(trackCount: number): number {
+  return trackCount * TRACK_HEIGHT
+}
 const MIN_TICK_SPACING = 60 // minimum px gap between major ticks
 
 // Candidate tick intervals in seconds (ascending order)
