@@ -35,7 +35,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 
 ### Phase 2: Timeline Core
 
-- [ ] Canvas timeline with Konva: pixelsPerSecond zoom and horizontal pan (spec: timeline-editing.md)
+- [x] Canvas timeline with Konva: pixelsPerSecond zoom and horizontal pan (spec: timeline-editing.md)
 - [ ] Time ruler with zoom-dependent tick marks (frames / seconds / minutes) (spec: timeline-editing.md)
 - [ ] Track lane rows: video, audio, annotation types; add/remove/reorder; mute/lock toggles (spec: timeline-editing.md)
 - [ ] Clip blocks: colored rectangles with drag-to-move within and across tracks (spec: timeline-editing.md)
