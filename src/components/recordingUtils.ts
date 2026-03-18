@@ -1,4 +1,23 @@
+import type { Track } from '@/store/types'
+
 export type RecordingStatus = 'idle' | 'recording' | 'paused'
+
+/**
+ * Compute the timeline insert time for a new recording clip.
+ * Returns the end time of the last clip across all video tracks,
+ * or 0 if no video clips exist.
+ */
+export function computeTimelineInsertTime(tracks: Track[]): number {
+  let maxEnd = 0
+  for (const track of tracks) {
+    if (track.type !== 'video') continue
+    for (const clip of track.clips) {
+      const end = clip.startTime + clip.duration
+      if (end > maxEnd) maxEnd = end
+    }
+  }
+  return maxEnd
+}
 
 /**
  * Format elapsed recording seconds as MM:SS.

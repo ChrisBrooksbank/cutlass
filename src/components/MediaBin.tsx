@@ -3,6 +3,8 @@ import { useEditorStore } from '@/store'
 import type { MediaAsset } from '@/store'
 import { DRAG_ASSET_TYPE, getAssetTypeFromMime, getMediaDuration } from './mediaBinUtils'
 import RecordingControls from './RecordingControls'
+import { extractVideoThumbnail } from './thumbnailUtils'
+import { computeTimelineInsertTime } from './recordingUtils'
 
 function assetIcon(type: MediaAsset['type']): string {
   if (type === 'video') return '▶'
@@ -27,14 +29,49 @@ export default function MediaBin() {
   const mediaAssets = useEditorStore((s) => s.project.mediaAssets)
   const addMediaAsset = useEditorStore((s) => s.addMediaAsset)
   const removeMediaAsset = useEditorStore((s) => s.removeMediaAsset)
+  const addTrack = useEditorStore((s) => s.addTrack)
+  const addClip = useEditorStore((s) => s.addClip)
 
   const handleRecordingComplete = useCallback(
-    (blob: Blob, durationSeconds: number) => {
+    async (blob: Blob, durationSeconds: number) => {
       const url = URL.createObjectURL(blob)
       const name = `Screen Recording ${new Date().toLocaleTimeString()}`
-      addMediaAsset({ name, type: 'video', url, duration: durationSeconds })
+
+      let thumbnail: string | undefined
+      try {
+        thumbnail = await extractVideoThumbnail(url, 0)
+      } catch {
+        // Thumbnail extraction failed; proceed without it
+      }
+
+      const asset = addMediaAsset({
+        name,
+        type: 'video',
+        url,
+        duration: durationSeconds,
+        thumbnail,
+      })
+
+      // Find or create a video track
+      const tracks = useEditorStore.getState().project.tracks
+      let videoTrack = tracks.find((t) => t.type === 'video')
+      if (!videoTrack) {
+        addTrack('video')
+        videoTrack = useEditorStore.getState().project.tracks.find((t) => t.type === 'video')!
+      }
+
+      const insertTime = computeTimelineInsertTime(useEditorStore.getState().project.tracks)
+      addClip(videoTrack.id, {
+        sourceId: asset.id,
+        startTime: insertTime,
+        duration: durationSeconds,
+        sourceIn: 0,
+        sourceOut: durationSeconds,
+        speed: 1,
+        effects: [],
+      })
     },
-    [addMediaAsset],
+    [addMediaAsset, addTrack, addClip],
   )
 
   const processFiles = useCallback(

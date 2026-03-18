@@ -7,7 +7,33 @@ import {
   pickBestMimeType,
   createMemoryChunkStorage,
   createChunkStorage,
+  computeTimelineInsertTime,
 } from './recordingUtils'
+import type { Track } from '@/store/types'
+
+function makeTrack(
+  type: Track['type'],
+  clips: Array<{ startTime: number; duration: number }>,
+): Track {
+  return {
+    id: crypto.randomUUID(),
+    type,
+    name: type,
+    muted: false,
+    locked: false,
+    clips: clips.map((c) => ({
+      id: crypto.randomUUID(),
+      trackId: '',
+      sourceId: '',
+      startTime: c.startTime,
+      duration: c.duration,
+      sourceIn: 0,
+      sourceOut: c.duration,
+      speed: 1,
+      effects: [],
+    })),
+  }
+}
 
 describe('formatRecordingTime', () => {
   it('formats zero as 00:00', () => {
@@ -100,6 +126,50 @@ describe('createMemoryChunkStorage', () => {
     const storage = createMemoryChunkStorage()
     const blob = await storage.toBlob('video/webm')
     expect(blob.size).toBe(0)
+  })
+})
+
+describe('computeTimelineInsertTime', () => {
+  it('returns 0 when there are no tracks', () => {
+    expect(computeTimelineInsertTime([])).toBe(0)
+  })
+
+  it('returns 0 when there are only non-video tracks', () => {
+    const tracks = [
+      makeTrack('audio', [{ startTime: 0, duration: 10 }]),
+      makeTrack('annotation', [{ startTime: 5, duration: 3 }]),
+    ]
+    expect(computeTimelineInsertTime(tracks)).toBe(0)
+  })
+
+  it('returns 0 when video track has no clips', () => {
+    const tracks = [makeTrack('video', [])]
+    expect(computeTimelineInsertTime(tracks)).toBe(0)
+  })
+
+  it('returns end time of the single video clip', () => {
+    const tracks = [makeTrack('video', [{ startTime: 2, duration: 8 }])]
+    expect(computeTimelineInsertTime(tracks)).toBe(10)
+  })
+
+  it('returns end time of the last clip across video tracks', () => {
+    const tracks = [
+      makeTrack('video', [
+        { startTime: 0, duration: 5 },
+        { startTime: 10, duration: 3 },
+      ]),
+      makeTrack('video', [{ startTime: 5, duration: 10 }]),
+    ]
+    // ends: 5, 13, 15 → max is 15
+    expect(computeTimelineInsertTime(tracks)).toBe(15)
+  })
+
+  it('ignores audio clips when computing insert time', () => {
+    const tracks = [
+      makeTrack('video', [{ startTime: 0, duration: 5 }]),
+      makeTrack('audio', [{ startTime: 0, duration: 100 }]),
+    ]
+    expect(computeTimelineInsertTime(tracks)).toBe(5)
   })
 })
 

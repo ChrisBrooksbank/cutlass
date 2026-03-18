@@ -11,7 +11,7 @@ import {
 } from './recordingUtils'
 
 interface RecordingControlsProps {
-  onRecordingComplete: (blob: Blob, durationSeconds: number) => void
+  onRecordingComplete: (blob: Blob, durationSeconds: number) => void | Promise<void>
 }
 
 export default function RecordingControls({ onRecordingComplete }: RecordingControlsProps) {
