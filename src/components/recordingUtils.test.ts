@@ -5,9 +5,11 @@ import {
   canResume,
   canStop,
   pickBestMimeType,
+  pickBestAudioMimeType,
   createMemoryChunkStorage,
   createChunkStorage,
   computeTimelineInsertTime,
+  computeVoiceoverInsertTime,
 } from './recordingUtils'
 import type { Track } from '@/store/types'
 
@@ -170,6 +172,71 @@ describe('computeTimelineInsertTime', () => {
       makeTrack('audio', [{ startTime: 0, duration: 100 }]),
     ]
     expect(computeTimelineInsertTime(tracks)).toBe(5)
+  })
+})
+
+describe('pickBestAudioMimeType', () => {
+  it('prefers audio/webm;codecs=opus', () => {
+    const supported = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg']
+    expect(pickBestAudioMimeType(supported)).toBe('audio/webm;codecs=opus')
+  })
+
+  it('falls back to audio/webm when opus unavailable', () => {
+    const supported = ['audio/webm', 'audio/ogg']
+    expect(pickBestAudioMimeType(supported)).toBe('audio/webm')
+  })
+
+  it('falls back to audio/ogg;codecs=opus when webm unavailable', () => {
+    const supported = ['audio/ogg;codecs=opus', 'audio/ogg']
+    expect(pickBestAudioMimeType(supported)).toBe('audio/ogg;codecs=opus')
+  })
+
+  it('returns audio/webm as default when nothing matches', () => {
+    expect(pickBestAudioMimeType([])).toBe('audio/webm')
+  })
+})
+
+describe('computeVoiceoverInsertTime', () => {
+  it('returns 0 when there are no tracks', () => {
+    expect(computeVoiceoverInsertTime([])).toBe(0)
+  })
+
+  it('returns 0 when there are only non-audio tracks', () => {
+    const tracks = [
+      makeTrack('video', [{ startTime: 0, duration: 10 }]),
+      makeTrack('annotation', [{ startTime: 5, duration: 3 }]),
+    ]
+    expect(computeVoiceoverInsertTime(tracks)).toBe(0)
+  })
+
+  it('returns 0 when audio track has no clips', () => {
+    const tracks = [makeTrack('audio', [])]
+    expect(computeVoiceoverInsertTime(tracks)).toBe(0)
+  })
+
+  it('returns end time of the single audio clip', () => {
+    const tracks = [makeTrack('audio', [{ startTime: 2, duration: 8 }])]
+    expect(computeVoiceoverInsertTime(tracks)).toBe(10)
+  })
+
+  it('returns end time of the last clip across audio tracks', () => {
+    const tracks = [
+      makeTrack('audio', [
+        { startTime: 0, duration: 5 },
+        { startTime: 10, duration: 3 },
+      ]),
+      makeTrack('audio', [{ startTime: 5, duration: 10 }]),
+    ]
+    // ends: 5, 13, 15 → max is 15
+    expect(computeVoiceoverInsertTime(tracks)).toBe(15)
+  })
+
+  it('ignores video clips when computing voiceover insert time', () => {
+    const tracks = [
+      makeTrack('audio', [{ startTime: 0, duration: 5 }]),
+      makeTrack('video', [{ startTime: 0, duration: 100 }]),
+    ]
+    expect(computeVoiceoverInsertTime(tracks)).toBe(5)
   })
 })
 

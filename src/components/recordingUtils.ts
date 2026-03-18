@@ -145,3 +145,41 @@ export async function createChunkStorage(filename: string): Promise<ChunkStorage
     return createMemoryChunkStorage()
   }
 }
+
+/**
+ * Pick the best supported audio MIME type from an array of supported types.
+ * Separated from MediaRecorder.isTypeSupported for testability.
+ */
+export function pickBestAudioMimeType(supportedTypes: string[]): string {
+  const preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg']
+  for (const t of preferred) {
+    if (supportedTypes.includes(t)) return t
+  }
+  return 'audio/webm'
+}
+
+/**
+ * Detect the best available audio MIME type for MediaRecorder at runtime.
+ */
+export function getPreferredAudioMimeType(): string {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg']
+  if (typeof MediaRecorder === 'undefined') return 'audio/webm'
+  return pickBestAudioMimeType(candidates.filter((t) => MediaRecorder.isTypeSupported(t)))
+}
+
+/**
+ * Compute the timeline insert time for a new voiceover clip.
+ * Returns the end time of the last clip across all audio tracks,
+ * or 0 if no audio clips exist.
+ */
+export function computeVoiceoverInsertTime(tracks: Track[]): number {
+  let maxEnd = 0
+  for (const track of tracks) {
+    if (track.type !== 'audio') continue
+    for (const clip of track.clips) {
+      const end = clip.startTime + clip.duration
+      if (end > maxEnd) maxEnd = end
+    }
+  }
+  return maxEnd
+}

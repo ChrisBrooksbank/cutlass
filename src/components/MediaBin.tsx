@@ -3,8 +3,9 @@ import { useEditorStore } from '@/store'
 import type { MediaAsset } from '@/store'
 import { DRAG_ASSET_TYPE, getAssetTypeFromMime, getMediaDuration } from './mediaBinUtils'
 import RecordingControls from './RecordingControls'
+import VoiceoverControls from './VoiceoverControls'
 import { extractVideoThumbnail } from './thumbnailUtils'
-import { computeTimelineInsertTime } from './recordingUtils'
+import { computeTimelineInsertTime, computeVoiceoverInsertTime } from './recordingUtils'
 
 function assetIcon(type: MediaAsset['type']): string {
   if (type === 'video') return '▶'
@@ -62,6 +63,40 @@ export default function MediaBin() {
 
       const insertTime = computeTimelineInsertTime(useEditorStore.getState().project.tracks)
       addClip(videoTrack.id, {
+        sourceId: asset.id,
+        startTime: insertTime,
+        duration: durationSeconds,
+        sourceIn: 0,
+        sourceOut: durationSeconds,
+        speed: 1,
+        effects: [],
+      })
+    },
+    [addMediaAsset, addTrack, addClip],
+  )
+
+  const handleVoiceoverComplete = useCallback(
+    async (blob: Blob, durationSeconds: number) => {
+      const url = URL.createObjectURL(blob)
+      const name = `Voiceover ${new Date().toLocaleTimeString()}`
+
+      const asset = addMediaAsset({
+        name,
+        type: 'audio',
+        url,
+        duration: durationSeconds,
+      })
+
+      // Find or create an audio track for voiceover
+      const tracks = useEditorStore.getState().project.tracks
+      let audioTrack = tracks.find((t) => t.type === 'audio')
+      if (!audioTrack) {
+        addTrack('audio')
+        audioTrack = useEditorStore.getState().project.tracks.find((t) => t.type === 'audio')!
+      }
+
+      const insertTime = computeVoiceoverInsertTime(useEditorStore.getState().project.tracks)
+      addClip(audioTrack.id, {
         sourceId: asset.id,
         startTime: insertTime,
         duration: durationSeconds,
@@ -153,6 +188,7 @@ export default function MediaBin() {
         />
       </div>
       <RecordingControls onRecordingComplete={handleRecordingComplete} />
+      <VoiceoverControls onVoiceoverComplete={handleVoiceoverComplete} />
       <div
         className="panel-body"
         onDragOver={handleDropZoneDragOver}
