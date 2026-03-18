@@ -3,9 +3,11 @@ import { Stage, Layer } from 'react-konva'
 import { useEditorStore } from '@/store'
 import type { TrackType } from '@/store/types'
 import { zoomAroundPoint, RULER_HEIGHT, TRACK_HEADER_WIDTH, getTracksHeight } from './timelineUtils'
+import { getClipBoundaryTimes, snapTime, SNAP_THRESHOLD_SEC } from './playheadUtils'
 import TimeRuler from './TimeRuler'
 import TrackLanesLayer from './TrackLanesLayer'
 import TrackHeaders from './TrackHeaders'
+import Playhead from './Playhead'
 
 // Re-export for components that previously imported from here
 export { TRACK_HEADER_WIDTH } from './timelineUtils'
@@ -31,6 +33,8 @@ export default function TimelinePanel() {
   const selectClip = useEditorStore((s) => s.selectClip)
   const moveClip = useEditorStore((s) => s.moveClip)
   const trimClip = useEditorStore((s) => s.trimClip)
+  const currentTime = useEditorStore((s) => s.playback.currentTime)
+  const setCurrentTime = useEditorStore((s) => s.setCurrentTime)
 
   useEffect(() => {
     const el = containerRef.current
@@ -62,6 +66,16 @@ export default function TimelinePanel() {
       }
     },
     [pixelsPerSecond, scrollLeft, setPixelsPerSecond, setScrollLeft],
+  )
+
+  /** Handle click-to-seek on the ruler: apply snap then commit to store. */
+  const handleRulerSeek = useCallback(
+    (rawTime: number) => {
+      const boundaries = getClipBoundaryTimes(tracks)
+      const time = snapTime(rawTime, boundaries, SNAP_THRESHOLD_SEC)
+      setCurrentTime(time)
+    },
+    [tracks, setCurrentTime],
   )
 
   const tracksHeight = getTracksHeight(tracks.length)
@@ -106,6 +120,7 @@ export default function TimelinePanel() {
               trackHeaderWidth={TRACK_HEADER_WIDTH}
               pixelsPerSecond={pixelsPerSecond}
               scrollLeft={scrollLeft}
+              onSeek={handleRulerSeek}
             />
           </Layer>
           <Layer y={RULER_HEIGHT}>
@@ -120,6 +135,17 @@ export default function TimelinePanel() {
               onSelectClip={selectClip}
               onMoveClip={moveClip}
               onTrimClip={trimClip}
+            />
+          </Layer>
+          {/* Playhead layer: rendered on top of ruler and clips */}
+          <Layer>
+            <Playhead
+              currentTime={currentTime}
+              pixelsPerSecond={pixelsPerSecond}
+              scrollLeft={scrollLeft}
+              stageHeight={stageHeight}
+              tracks={tracks}
+              onSeek={setCurrentTime}
             />
           </Layer>
         </Stage>
