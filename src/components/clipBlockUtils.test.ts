@@ -2,11 +2,14 @@ import { describe, it, expect } from 'vitest'
 import {
   CLIP_COLOR,
   CLIP_COLOR_SELECTED,
+  MIN_CLIP_DURATION,
   clipCanvasX,
   clipCanvasY,
   clipCanvasWidth,
   canvasXToStartTime,
   canvasYToTrackIndex,
+  computeTrimLeft,
+  computeTrimRight,
 } from './clipBlockUtils'
 import { TRACK_HEIGHT, TRACK_HEADER_WIDTH } from './timelineUtils'
 
@@ -132,5 +135,77 @@ describe('canvasYToTrackIndex', () => {
   it('handles single track', () => {
     expect(canvasYToTrackIndex(0, 1)).toBe(0)
     expect(canvasYToTrackIndex(9999, 1)).toBe(0)
+  })
+})
+
+describe('computeTrimLeft', () => {
+  it('trims from the left, increasing startTime and decreasing duration', () => {
+    const result = computeTrimLeft(2, 5, 0, 1)
+    expect(result.startTime).toBeCloseTo(3)
+    expect(result.duration).toBeCloseTo(4)
+  })
+
+  it('extends left (negative delta), decreasing startTime and increasing duration', () => {
+    const result = computeTrimLeft(2, 5, 2, -1)
+    expect(result.startTime).toBeCloseTo(1)
+    expect(result.duration).toBeCloseTo(6)
+  })
+
+  it('clamps startTime to 0 when extending before timeline start', () => {
+    const result = computeTrimLeft(1, 5, 5, -10)
+    expect(result.startTime).toBe(0)
+    expect(result.duration).toBeCloseTo(6)
+  })
+
+  it('clamps duration to MIN_CLIP_DURATION when trimming too far', () => {
+    const result = computeTrimLeft(0, 3, 0, 100)
+    expect(result.duration).toBeCloseTo(MIN_CLIP_DURATION)
+  })
+
+  it('clamps extension to not go before source start (sourceIn would go negative)', () => {
+    // sourceIn=0.5, extending left by 2s would go to sourceIn=-1.5 — should clamp to -0.5s delta
+    const result = computeTrimLeft(2, 5, 0.5, -2)
+    // clamped delta = -0.5, so startTime = 2 - 0.5 = 1.5
+    expect(result.startTime).toBeCloseTo(1.5)
+    expect(result.duration).toBeCloseTo(5.5)
+  })
+
+  it('returns original values when delta is 0', () => {
+    const result = computeTrimLeft(3, 4, 1, 0)
+    expect(result.startTime).toBeCloseTo(3)
+    expect(result.duration).toBeCloseTo(4)
+  })
+})
+
+describe('computeTrimRight', () => {
+  it('extends right (positive delta), increasing duration', () => {
+    const result = computeTrimRight(5, 8, 2, 15)
+    expect(result.duration).toBeCloseTo(7)
+  })
+
+  it('trims right (negative delta), decreasing duration', () => {
+    const result = computeTrimRight(5, 8, -2, 15)
+    expect(result.duration).toBeCloseTo(3)
+  })
+
+  it('clamps duration to MIN_CLIP_DURATION when trimming too far', () => {
+    const result = computeTrimRight(3, 5, -100, 20)
+    expect(result.duration).toBeCloseTo(MIN_CLIP_DURATION)
+  })
+
+  it('clamps extension to not exceed media duration', () => {
+    // mediaDuration=10, sourceOut=8, can extend at most 2s
+    const result = computeTrimRight(5, 8, 5, 10)
+    expect(result.duration).toBeCloseTo(7) // 5 + 2
+  })
+
+  it('allows full extension when mediaDuration is Infinity', () => {
+    const result = computeTrimRight(5, 8, 100, Infinity)
+    expect(result.duration).toBeCloseTo(105)
+  })
+
+  it('returns original duration when delta is 0', () => {
+    const result = computeTrimRight(4, 6, 0, 20)
+    expect(result.duration).toBeCloseTo(4)
   })
 })

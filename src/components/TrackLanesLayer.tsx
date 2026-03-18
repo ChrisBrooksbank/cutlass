@@ -25,6 +25,13 @@ interface TrackLanesLayerProps {
   selectedClipIds: string[]
   onSelectClip: (clipId: string, addToSelection: boolean) => void
   onMoveClip: (clipId: string, targetTrackId: string, startTime: number) => void
+  onTrimClip: (
+    clipId: string,
+    startTime: number,
+    duration: number,
+    sourceIn: number,
+    sourceOut: number,
+  ) => void
 }
 
 export default function TrackLanesLayer({
@@ -37,6 +44,7 @@ export default function TrackLanesLayer({
   selectedClipIds,
   onSelectClip,
   onMoveClip,
+  onTrimClip,
 }: TrackLanesLayerProps) {
   const assetMap = new Map(mediaAssets.map((a) => [a.id, a]))
 
@@ -84,6 +92,7 @@ export default function TrackLanesLayer({
             isSelected={selectedClipIds.includes(clip.id)}
             onSelect={onSelectClip}
             onMove={onMoveClip}
+            onTrim={onTrimClip}
           />
         )),
       )}

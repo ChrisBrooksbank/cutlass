@@ -30,6 +30,7 @@ export default function TimelinePanel() {
   const selectedClipIds = useEditorStore((s) => s.selection.selectedClipIds)
   const selectClip = useEditorStore((s) => s.selectClip)
   const moveClip = useEditorStore((s) => s.moveClip)
+  const trimClip = useEditorStore((s) => s.trimClip)
 
   useEffect(() => {
     const el = containerRef.current
@@ -118,6 +119,7 @@ export default function TimelinePanel() {
               selectedClipIds={selectedClipIds}
               onSelectClip={selectClip}
               onMoveClip={moveClip}
+              onTrimClip={trimClip}
             />
           </Layer>
         </Stage>

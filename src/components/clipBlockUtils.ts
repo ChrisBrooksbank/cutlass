@@ -1,5 +1,11 @@
 import { TRACK_HEIGHT, TRACK_HEADER_WIDTH } from './timelineUtils'
 
+/** Width of the trim handle hit area in pixels. */
+export const TRIM_HANDLE_WIDTH = 6
+
+/** Minimum clip duration in seconds to prevent collapsing to zero. */
+export const MIN_CLIP_DURATION = 0.1
+
 /** Clip fill colors by track type (normal state). */
 export const CLIP_COLOR: Record<string, string> = {
   video: '#3b82f6',
@@ -61,4 +67,53 @@ export function canvasXToStartTime(
 export function canvasYToTrackIndex(canvasY: number, trackCount: number): number {
   const raw = Math.floor((canvasY + TRACK_HEIGHT / 2) / TRACK_HEIGHT)
   return Math.max(0, Math.min(trackCount - 1, raw))
+}
+
+/**
+ * Compute new startTime and duration when dragging the left trim handle.
+ *
+ * @param originalStartTime - clip's startTime before trimming begins
+ * @param originalDuration  - clip's duration before trimming begins
+ * @param originalSourceIn  - clip's sourceIn before trimming begins (seconds)
+ * @param deltaTime         - how far the handle moved in timeline seconds (positive = trim inward)
+ * @returns clamped { startTime, duration }
+ */
+export function computeTrimLeft(
+  originalStartTime: number,
+  originalDuration: number,
+  originalSourceIn: number,
+  deltaTime: number,
+): { startTime: number; duration: number } {
+  // Can't trim further left than source start (sourceIn would go negative)
+  const minDelta = -originalSourceIn
+  // Can't trim so far right that duration drops below minimum
+  const maxDelta = originalDuration - MIN_CLIP_DURATION
+  const clamped = Math.max(minDelta, Math.min(maxDelta, deltaTime))
+  // Also clamp resulting startTime to >= 0
+  const startTime = Math.max(0, originalStartTime + clamped)
+  const actualDelta = startTime - originalStartTime
+  return { startTime, duration: originalDuration - actualDelta }
+}
+
+/**
+ * Compute new duration when dragging the right trim handle.
+ *
+ * @param originalDuration  - clip's duration before trimming begins
+ * @param originalSourceOut - clip's sourceOut before trimming begins (seconds)
+ * @param deltaTime         - how far the handle moved in timeline seconds (positive = extend)
+ * @param mediaDuration     - total source media duration (Infinity if unknown)
+ * @returns clamped { duration }
+ */
+export function computeTrimRight(
+  originalDuration: number,
+  originalSourceOut: number,
+  deltaTime: number,
+  mediaDuration: number,
+): { duration: number } {
+  // Can't trim so far left that duration drops below minimum
+  const minDelta = -(originalDuration - MIN_CLIP_DURATION)
+  // Can't extend beyond the end of the source media
+  const maxDelta = mediaDuration - originalSourceOut
+  const clamped = Math.max(minDelta, Math.min(maxDelta, deltaTime))
+  return { duration: originalDuration + clamped }
 }
