@@ -4,6 +4,7 @@ import type { MediaAsset } from '@/store'
 import { DRAG_ASSET_TYPE, getAssetTypeFromMime, getMediaDuration } from './mediaBinUtils'
 import RecordingControls from './RecordingControls'
 import VoiceoverControls from './VoiceoverControls'
+import BackgroundMusicControls from './BackgroundMusicControls'
 import { extractVideoThumbnail } from './thumbnailUtils'
 import { computeTimelineInsertTime, computeVoiceoverInsertTime } from './recordingUtils'
 
@@ -189,6 +190,7 @@ export default function MediaBin() {
       </div>
       <RecordingControls onRecordingComplete={handleRecordingComplete} />
       <VoiceoverControls onVoiceoverComplete={handleVoiceoverComplete} />
+      <BackgroundMusicControls />
       <div
         className="panel-body"
         onDragOver={handleDropZoneDragOver}
