@@ -1,7 +1,8 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
 import { Stage, Layer } from 'react-konva'
 import { useEditorStore } from '@/store'
-import { zoomAroundPoint } from './timelineUtils'
+import { zoomAroundPoint, RULER_HEIGHT } from './timelineUtils'
+import TimeRuler from './TimeRuler'
 
 export const TRACK_HEADER_WIDTH = 160
 
@@ -58,7 +59,15 @@ export default function TimelinePanel() {
         style={{ overflow: 'hidden' }}
       >
         <Stage width={size.width} height={size.height}>
-          <Layer />
+          <Layer>
+            <TimeRuler
+              width={size.width}
+              trackHeaderWidth={TRACK_HEADER_WIDTH}
+              pixelsPerSecond={pixelsPerSecond}
+              scrollLeft={scrollLeft}
+            />
+          </Layer>
+          <Layer y={RULER_HEIGHT} />
         </Stage>
       </div>
     </div>
