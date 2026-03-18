@@ -77,9 +77,9 @@ describe('snapTime', () => {
     expect(snapTime(2.95, [3], 0.1)).toBe(3)
   })
 
-  it('does not snap when exactly at threshold distance', () => {
-    // dist === thresholdSec uses strict <, so exactly equal is NOT snapped
-    expect(snapTime(2.9, [3], 0.1)).toBe(2.9)
+  it('snaps when exactly at threshold distance', () => {
+    // dist === thresholdSec should be snapped (inclusive threshold)
+    expect(snapTime(2.9, [3], 0.1)).toBe(3)
   })
 
   it('snaps to the closest of multiple candidates', () => {

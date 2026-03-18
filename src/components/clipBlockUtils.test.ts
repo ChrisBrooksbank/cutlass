@@ -146,10 +146,13 @@ describe('canvasYToTrackIndex', () => {
     expect(canvasYToTrackIndex(TRACK_HEIGHT / 4, 3)).toBe(0)
   })
 
-  it('returns 1 when y is just past the midpoint of the first track', () => {
-    // floor((y + TRACK_HEIGHT/2) / TRACK_HEIGHT) with y = TRACK_HEIGHT/2 + 1
-    // floor((TRACK_HEIGHT/2 + 1 + TRACK_HEIGHT/2) / TRACK_HEIGHT) = floor((TRACK_HEIGHT+1)/TRACK_HEIGHT) = 1
-    expect(canvasYToTrackIndex(TRACK_HEIGHT / 2 + 1, 3)).toBe(1)
+  it('returns 0 when y is just past the midpoint of the first track', () => {
+    // floor(y / TRACK_HEIGHT) with y = TRACK_HEIGHT/2 + 1 — still within the first track
+    expect(canvasYToTrackIndex(TRACK_HEIGHT / 2 + 1, 3)).toBe(0)
+  })
+
+  it('returns 1 when y is in the second track', () => {
+    expect(canvasYToTrackIndex(TRACK_HEIGHT + 1, 3)).toBe(1)
   })
 
   it('clamps to trackCount - 1 at the bottom', () => {

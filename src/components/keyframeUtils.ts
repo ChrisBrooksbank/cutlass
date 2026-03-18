@@ -41,6 +41,8 @@ export function interpolateKeyframes(keyframes: Keyframe[], time: number): numbe
 
   const from = sorted[loIndex]
   const to = sorted[loIndex + 1]
+  // Guard against division by zero when two keyframes share the same time
+  if (to.time === from.time) return to.value
   const t = (time - from.time) / (to.time - from.time)
   const easedT = applyEasing(t, from.easing)
   return from.value + (to.value - from.value) * easedT

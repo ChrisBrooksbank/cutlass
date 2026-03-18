@@ -233,8 +233,8 @@ export function introOutroToFFmpegFilter(
   const subtitleY = Math.round(height * 0.58)
 
   return [
-    `color=c=${bgHex}:size=${width}x${height}`,
-    `drawtext=text='${titleEsc}':x=(w-text_w)/2:y=${titleY}:fontsize=${titleSize}:fontcolor=${fgHex}`,
-    `drawtext=text='${subtitleEsc}':x=(w-text_w)/2:y=${subtitleY}:fontsize=${subtitleSize}:fontcolor=${fgHex}`,
+    `color=c=0x${bgHex}:size=${width}x${height}`,
+    `drawtext=text='${titleEsc}':x=(w-text_w)/2:y=${titleY}:fontsize=${titleSize}:fontcolor=0x${fgHex}`,
+    `drawtext=text='${subtitleEsc}':x=(w-text_w)/2:y=${subtitleY}:fontsize=${subtitleSize}:fontcolor=0x${fgHex}`,
   ].join(',')
 }

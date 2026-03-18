@@ -73,14 +73,15 @@ export function computeWaveformPoints(data: Float32Array, width: number, height:
   const points: number[] = []
 
   // Top envelope: left → right
+  const divisor = n > 1 ? n - 1 : 1
   for (let i = 0; i < n; i++) {
-    const x = (i / (n - 1)) * width
+    const x = (i / divisor) * width
     points.push(x, midY - data[i] * halfH)
   }
 
   // Bottom envelope: right → left (closing the polygon)
   for (let i = n - 1; i >= 0; i--) {
-    const x = (i / (n - 1)) * width
+    const x = (i / divisor) * width
     points.push(x, midY + data[i] * halfH)
   }
 

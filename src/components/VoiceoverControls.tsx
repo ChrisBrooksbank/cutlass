@@ -98,7 +98,7 @@ export default function VoiceoverControls({ onVoiceoverComplete }: VoiceoverCont
 
   const handlePause = useCallback(() => {
     if (recorderRef.current?.state === 'recording') {
-      accumulatedRef.current += Math.floor((Date.now() - segmentStartRef.current) / 1000)
+      accumulatedRef.current += (Date.now() - segmentStartRef.current) / 1000
       recorderRef.current.pause()
       stopTimer()
       setElapsed(accumulatedRef.current)
@@ -117,7 +117,7 @@ export default function VoiceoverControls({ onVoiceoverComplete }: VoiceoverCont
   const handleStop = useCallback(() => {
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
       if (recorderRef.current.state === 'recording') {
-        accumulatedRef.current += Math.floor((Date.now() - segmentStartRef.current) / 1000)
+        accumulatedRef.current += (Date.now() - segmentStartRef.current) / 1000
       }
       recorderRef.current.stop()
     }

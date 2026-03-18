@@ -1390,10 +1390,12 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
 
 function KeyframeEffectEditor({
   clipId,
+  clip_startTime,
   clip_duration,
   effect,
 }: {
   clipId: string
+  clip_startTime: number
   clip_duration: number
   effect: Effect
 }) {
@@ -1405,8 +1407,8 @@ function KeyframeEffectEditor({
   const sorted = sortKeyframesByTime(effect.keyframes)
 
   function handleAddKeyframe() {
-    // Time is relative to clip — clamp playhead to clip duration
-    const relativeTime = clampTime(currentTime, 0, clip_duration)
+    // Time is relative to clip — subtract clip start and clamp to clip duration
+    const relativeTime = clampTime(currentTime - clip_startTime, 0, clip_duration)
     addKeyframe(clipId, effect.id, { time: relativeTime, value: 0, easing: 'linear' })
   }
 
@@ -1445,7 +1447,7 @@ function KeyframeEffectEditor({
             cursor: 'pointer',
           }}
         >
-          + Add at {formatKeyframeTime(clampTime(currentTime, 0, clip_duration))}
+          + Add at {formatKeyframeTime(clampTime(currentTime - clip_startTime, 0, clip_duration))}
         </button>
       </div>
 
@@ -1581,10 +1583,12 @@ function KeyframeEffectEditor({
 
 function KeyframeEditor({
   clipId,
+  clip_startTime,
   clip_duration,
   effects,
 }: {
   clipId: string
+  clip_startTime: number
   clip_duration: number
   effects: Effect[]
 }) {
@@ -1602,6 +1606,7 @@ function KeyframeEditor({
         <KeyframeEffectEditor
           key={effect.id}
           clipId={clipId}
+          clip_startTime={clip_startTime}
           clip_duration={clip_duration}
           effect={effect}
         />
@@ -1717,7 +1722,7 @@ function ClipProperties({ clipId }: { clipId: string }) {
         >
           Keyframes
         </div>
-        <KeyframeEditor clipId={clipId} clip_duration={clip.duration} effects={clip.effects} />
+        <KeyframeEditor clipId={clipId} clip_startTime={clip.startTime} clip_duration={clip.duration} effects={clip.effects} />
       </div>
     </div>
   )

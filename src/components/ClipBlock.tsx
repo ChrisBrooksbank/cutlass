@@ -197,6 +197,7 @@ export default function ClipBlock({
           trimRef.current.originalDuration,
           trimRef.current.originalSourceIn,
           deltaTime,
+          speed,
         )
         const originalRightEdge =
           trimRef.current.originalStartTime + trimRef.current.originalDuration
@@ -211,6 +212,7 @@ export default function ClipBlock({
           trimRef.current.originalSourceOut,
           deltaTime,
           mediaDuration,
+          speed,
         )
         const rawEndTime = trimRef.current.originalStartTime + result.duration
         const snappedEndTime = snapTime(rawEndTime, snapTargets, SNAP_THRESHOLD_SEC)

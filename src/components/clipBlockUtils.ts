@@ -66,7 +66,7 @@ export function canvasXToStartTime(
  * to a track index. Clamps to [0, trackCount - 1].
  */
 export function canvasYToTrackIndex(canvasY: number, trackCount: number): number {
-  const raw = Math.floor((canvasY + TRACK_HEIGHT / 2) / TRACK_HEIGHT)
+  const raw = Math.floor(canvasY / TRACK_HEIGHT)
   return Math.max(0, Math.min(trackCount - 1, raw))
 }
 
@@ -84,9 +84,11 @@ export function computeTrimLeft(
   originalDuration: number,
   originalSourceIn: number,
   deltaTime: number,
+  speed: number = 1,
 ): { startTime: number; duration: number } {
-  // Can't trim further left than source start (sourceIn would go negative)
-  const minDelta = -originalSourceIn
+  // Can't trim further left than source start (sourceIn would go negative).
+  // Convert from source time to timeline time by dividing by speed.
+  const minDelta = -originalSourceIn / speed
   // Can't trim so far right that duration drops below minimum
   const maxDelta = originalDuration - MIN_CLIP_DURATION
   const clamped = Math.max(minDelta, Math.min(maxDelta, deltaTime))
@@ -110,11 +112,12 @@ export function computeTrimRight(
   originalSourceOut: number,
   deltaTime: number,
   mediaDuration: number,
+  speed: number = 1,
 ): { duration: number } {
   // Can't trim so far left that duration drops below minimum
   const minDelta = -(originalDuration - MIN_CLIP_DURATION)
-  // Can't extend beyond the end of the source media
-  const maxDelta = mediaDuration - originalSourceOut
+  // Can't extend beyond the end of the source media (convert source to timeline time)
+  const maxDelta = (mediaDuration - originalSourceOut) / speed
   const clamped = Math.max(minDelta, Math.min(maxDelta, deltaTime))
   return { duration: originalDuration + clamped }
 }

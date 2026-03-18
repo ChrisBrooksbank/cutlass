@@ -114,10 +114,10 @@ registerEffect({
     // via x/y expressions. Static values used here; keyframe expressions would
     // require building FFmpeg timeline expressions.
     const scale = (scaleX + scaleY) / 2
-    // d=0 processes all frames (d=1 would only process 1 frame total).
+    // d=1 produces one output frame per input frame, preserving frame count.
     // Static values used here; keyframe expressions would require building
     // FFmpeg timeline expressions.
-    return `zoompan=z='${scale}':x='${x}':y='${y}':d=0:s=${width}x${height}:fps=${fps}`
+    return `zoompan=z='${scale}':x='${x}':y='${y}':d=1:s=${width}x${height}:fps=${fps}`
   },
 })
 
@@ -303,12 +303,11 @@ registerEffect({
     const { ctx, width, height } = renderCtx
     const { x, y, width: cw, height: ch } = computeCropRegion(effect, width, height)
 
-    ctx.save()
-    // Apply clip path to constrain rendering to the crop region
+    // Apply clip path to constrain rendering to the crop region.
+    // The frame rendering loop is responsible for save()/restore().
     ctx.beginPath()
     ctx.rect(x, y, cw, ch)
     ctx.clip()
-    ctx.restore()
   },
   toFFmpegFilter(effect, exportCtx) {
     const { x, y, width, height } = computeCropRegion(effect, exportCtx.width, exportCtx.height)

@@ -24,7 +24,7 @@ export function getClipBoundaryTimes(tracks: Track[]): number[] {
  */
 export function snapTime(time: number, snapTimes: number[], thresholdSec: number): number {
   let best = time
-  let bestDist = thresholdSec
+  let bestDist = thresholdSec + 1e-9
 
   for (const t of snapTimes) {
     const dist = Math.abs(time - t)

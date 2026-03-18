@@ -83,7 +83,7 @@ export function buildGifPalettegenArgs(settings: GifExportSettings): string[] {
  */
 export function buildGifPaletteUseFilter(settings: GifExportSettings): string {
   const { fps, width } = settings
-  return `fps=${fps},scale=${width}:-1:flags=lanczos [x]; [x][1:v] paletteuse`
+  return `[0:v] fps=${fps},scale=${width}:-1:flags=lanczos [x]; [x][1:v] paletteuse`
 }
 
 /**

@@ -57,18 +57,20 @@ export function formatRulerTime(seconds: number, interval: number): string {
   if (interval < 1) {
     // Frame level – show s:ff (30 fps)
     const s = Math.floor(seconds)
-    const frame = Math.round((seconds - s) * 30)
+    const frame = Math.floor((seconds - s) * 30)
     return `${s}:${String(frame).padStart(2, '0')}`
   }
   if (interval < 60) {
     // Second level
-    const m = Math.floor(seconds / 60)
-    const s = Math.round(seconds % 60)
+    const totalSec = Math.round(seconds)
+    const m = Math.floor(totalSec / 60)
+    const s = totalSec % 60
     return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}s`
   }
   // Minute level
-  const m = Math.floor(seconds / 60)
-  const s = Math.round(seconds % 60)
+  const totalSec = Math.round(seconds)
+  const m = Math.floor(totalSec / 60)
+  const s = totalSec % 60
   return s > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${m}m`
 }
 

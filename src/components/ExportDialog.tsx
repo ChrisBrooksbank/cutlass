@@ -578,6 +578,9 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
 // ---------------------------------------------------------------------------
 
 function getExtFromUrl(url: string): string {
+  // Blob URLs have no meaningful file extension — default to .webm since
+  // all browser-recorded media (screen capture, voiceover) uses WebM.
+  if (url.startsWith('blob:')) return '.webm'
   try {
     const pathname = new URL(url, 'http://localhost').pathname
     const ext = pathname.substring(pathname.lastIndexOf('.'))

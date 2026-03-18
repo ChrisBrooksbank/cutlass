@@ -128,7 +128,8 @@ export default function TimelinePanel() {
       const timelineX = relX - TRACK_HEADER_WIDTH + storeState.ui.scrollLeft
       const startTime = Math.max(0, timelineX / storeState.ui.pixelsPerSecond)
 
-      const trackAreaY = relY - RULER_HEIGHT
+      const scrollTop = (e.currentTarget as HTMLElement).scrollTop || 0
+      const trackAreaY = relY - RULER_HEIGHT + scrollTop
       const dropTrackIndex = trackAreaY >= 0 ? Math.floor(trackAreaY / TRACK_HEIGHT) : 0
 
       const targetType = asset.type === 'audio' ? 'audio' : 'video'

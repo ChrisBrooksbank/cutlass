@@ -94,7 +94,9 @@ export default function RecordingControls({ onRecordingComplete }: RecordingCont
       // Handle user clicking "Stop sharing" in the browser's native UI
       stream.getVideoTracks()[0]?.addEventListener('ended', () => {
         if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-          accumulatedRef.current += Math.floor((Date.now() - segmentStartRef.current) / 1000)
+          if (recorderRef.current.state === 'recording') {
+            accumulatedRef.current += (Date.now() - segmentStartRef.current) / 1000
+          }
           recorderRef.current.stop()
         }
       })
@@ -109,7 +111,7 @@ export default function RecordingControls({ onRecordingComplete }: RecordingCont
 
   const handlePause = useCallback(() => {
     if (recorderRef.current?.state === 'recording') {
-      accumulatedRef.current += Math.floor((Date.now() - segmentStartRef.current) / 1000)
+      accumulatedRef.current += (Date.now() - segmentStartRef.current) / 1000
       recorderRef.current.pause()
       stopTimer()
       setElapsed(accumulatedRef.current)
@@ -128,7 +130,7 @@ export default function RecordingControls({ onRecordingComplete }: RecordingCont
   const handleStop = useCallback(() => {
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
       if (recorderRef.current.state === 'recording') {
-        accumulatedRef.current += Math.floor((Date.now() - segmentStartRef.current) / 1000)
+        accumulatedRef.current += (Date.now() - segmentStartRef.current) / 1000
       }
       recorderRef.current.stop()
     }
