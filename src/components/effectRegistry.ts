@@ -1,7 +1,7 @@
 import type { Effect } from '@/store/types'
-import { interpolateKeyframes } from './keyframeUtils'
 import { computeKenBurnsTransform, applyKenBurnsTransform } from './kenBurnsUtils'
 import { computeBlurRegion, renderBlurRegion } from './blurUtils'
+import { computeCursorPosition, renderCursorHighlight } from './cursorHighlightUtils'
 
 // ---------------------------------------------------------------------------
 // Context types passed to each handler
@@ -136,24 +136,13 @@ registerEffect({
   defaultParams: { radius: 30, color: 'rgba(255,255,0,0.4)' },
   render(renderCtx, effect) {
     const { ctx, clipTime } = renderCtx
-    // Cursor positions stored as keyframes on 'x' and 'y' channels
-    const kfX = effect.keyframes.filter((k) => (k as { channel?: string }).channel === 'x')
-    const kfY = effect.keyframes.filter((k) => (k as { channel?: string }).channel === 'y')
-    if (!kfX.length || !kfY.length) return
-
-    const cx = interpolateKeyframes(kfX, clipTime)
-    const cy = interpolateKeyframes(kfY, clipTime)
-    if (cx === null || cy === null) return
+    const pos = computeCursorPosition(effect, clipTime)
+    if (!pos) return
 
     const radius = (effect.params.radius as number | undefined) ?? 30
     const color = (effect.params.color as string | undefined) ?? 'rgba(255,255,0,0.4)'
 
-    ctx.save()
-    ctx.beginPath()
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
-    ctx.fillStyle = color
-    ctx.fill()
-    ctx.restore()
+    renderCursorHighlight(ctx, pos.x, pos.y, radius, color)
   },
   toFFmpegFilter() {
     // Cursor highlight is a canvas overlay; no FFmpeg filter equivalent
