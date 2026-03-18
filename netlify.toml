@@ -19,6 +19,18 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# Cache PWA icons
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+# Service worker must not be cached aggressively
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

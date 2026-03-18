@@ -664,3 +664,6 @@ export const useEditorStore = create<EditorStore>()(
 export type UndoRedoState = TemporalState<Pick<EditorStore, 'project'>>
 
 export const useUndoRedo = () => useStore(useEditorStore.temporal)
+
+// Expose store on window for E2E tests (Playwright)
+;(window as unknown as Record<string, unknown>).__editorStore = useEditorStore

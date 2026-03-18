@@ -7,6 +7,7 @@ import TimelinePanel from '@/components/TimelinePanel'
 import { useEditorStore, useUndoRedo } from '@/store'
 import { getShortcutAction, stepOneFrame } from '@/components/keyboardShortcutsUtils'
 import { getSplitCandidates } from '@/components/splitUtils'
+import PWAPrompts from '@/components/PWAPrompts'
 
 export default function App() {
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying)
@@ -83,6 +84,7 @@ export default function App() {
       <PreviewPanel />
       <PropertiesPanel />
       <TimelinePanel />
+      <PWAPrompts />
     </div>
   )
 }

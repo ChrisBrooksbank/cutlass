@@ -270,7 +270,7 @@ function groupClipsIntoChains(clips: Clip[]): Clip[][] {
  * Returns inputs (in order) and a filter_complex string along with the
  * stream labels to use for the final video and audio outputs.
  */
-export function buildFFmpegArgs(project: ProjectState): FFmpegArgs {
+export function buildFFmpegArgs(project: ProjectState, options?: { skipAudio?: boolean }): FFmpegArgs {
   const assetMap = new Map(project.mediaAssets.map((a) => [a.id, a]))
 
   // --- Assign a stable FFmpeg input index to every clip ---
@@ -407,6 +407,16 @@ export function buildFFmpegArgs(project: ProjectState): FFmpegArgs {
   // -----------------------------------------------------------------------
 
   const processedAudioLabels: string[] = []
+
+  if (options?.skipAudio) {
+    // Skip audio processing entirely (e.g. when inputs have no audio streams)
+    return {
+      inputs,
+      filterComplex: fragments.join(';'),
+      videoMap,
+      audioMap: null,
+    }
+  }
 
   for (const track of project.tracks) {
     if (track.muted) continue

@@ -266,8 +266,14 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
     setErrorMessage(null)
 
     try {
+      // Capture FFmpeg log lines so we can surface meaningful errors
+      const ffmpegLogs: string[] = []
+
       // Load FFmpeg
       const ffmpeg = await loadFFmpeg({
+        onLog: (event) => {
+          ffmpegLogs.push(event.message)
+        },
         onProgress: (event) => {
           if (!abortRef.current) {
             setProgress(progressRatioToPercent(event.progress))
@@ -305,7 +311,13 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           ...buildGifPalettegenArgs(gifSettings, inputs.length),
           'palette.png',
         ]
-        await ffmpeg.exec(paletteArgs)
+        const paletteExit = await ffmpeg.exec(paletteArgs)
+        if (paletteExit !== 0) {
+          throw new Error(
+            'FFmpeg palettegen failed' +
+            (ffmpegLogs.length ? ': ' + ffmpegLogs.slice(-5).join(' | ') : ''),
+          )
+        }
 
         if (abortRef.current) return
 
@@ -317,7 +329,13 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           ...buildGifPaletteUseArgs(gifSettings, paletteInputIndex),
           'output.gif',
         ]
-        await ffmpeg.exec(gifArgs)
+        const gifExit = await ffmpeg.exec(gifArgs)
+        if (gifExit !== 0) {
+          throw new Error(
+            'FFmpeg GIF export failed' +
+            (ffmpegLogs.length ? ': ' + ffmpegLogs.slice(-5).join(' | ') : ''),
+          )
+        }
 
         if (abortRef.current) return
 
@@ -326,59 +344,76 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         triggerDownload(blob, filename)
       } else {
         // Video export (MP4/WebM)
-        const ffmpegArgs = buildFFmpegArgs(project)
-
-        // Build the full command
-        const args: string[] = []
-
-        // Input files
-        for (let i = 0; i < inputs.length; i++) {
-          args.push('-i', `input${i}${getExtFromUrl(inputs[i].url)}`)
-        }
-
-        // Scale to target resolution
-        const targetRes =
-          preset === 'custom'
-            ? { width: customWidth, height: customHeight }
-            : RESOLUTION_PRESET_VALUES[preset]
-        const scaleFilter = `scale=${targetRes.width}:${targetRes.height}`
-
-        // When a filter_complex is present, appending -vf would conflict.
-        // Instead, fold the scale into the filter graph as an extra stage.
-        if (ffmpegArgs.filterComplex) {
-          // videoMap is e.g. "[vout]" or "[vpos_xxx_0]"
-          const mapLabel = ffmpegArgs.videoMap.replace(/^\[|\]$/g, '')
-          const scaledLabel = `${mapLabel}_scaled`
-          const extendedFC = `${ffmpegArgs.filterComplex};[${mapLabel}]${scaleFilter}[${scaledLabel}]`
-          args.push('-filter_complex', extendedFC)
-          args.push('-map', `[${scaledLabel}]`)
-        } else {
-          // Simple single-input: use -vf directly
-          if (ffmpegArgs.videoMap) {
-            args.push('-map', ffmpegArgs.videoMap)
-          }
-          args.push('-vf', scaleFilter)
-        }
-
-        // Map audio output
-        if (ffmpegArgs.audioMap) {
-          args.push('-map', ffmpegArgs.audioMap)
-        }
-
-        // Codec args with quality preset CRF
-        const qp = QUALITY_PRESETS[quality]
-        const codecArgs = getFormatCodecArgs(format, qp.crfH264, qp.crfVP9)
-        args.push(...codecArgs)
-
-        // Duration limit
-        if (durationSec > 0) {
-          args.push('-t', String(durationSec))
-        }
-
         const outputFilename = `output.${format}`
-        args.push('-y', outputFilename)
 
-        await ffmpeg.exec(args)
+        const buildVideoExportArgs = (skipAudio: boolean): string[] => {
+          const ffmpegArgs = buildFFmpegArgs(project, { skipAudio })
+          const a: string[] = []
+
+          // Input files
+          for (let i = 0; i < inputs.length; i++) {
+            a.push('-i', `input${i}${getExtFromUrl(inputs[i].url)}`)
+          }
+
+          // Scale to target resolution
+          const targetRes =
+            preset === 'custom'
+              ? { width: customWidth, height: customHeight }
+              : RESOLUTION_PRESET_VALUES[preset]
+          const scaleFilter = `scale=${targetRes.width}:${targetRes.height}`
+
+          // When a filter_complex is present, appending -vf would conflict.
+          // Instead, fold the scale into the filter graph as an extra stage.
+          if (ffmpegArgs.filterComplex) {
+            const mapLabel = ffmpegArgs.videoMap.replace(/^\[|\]$/g, '')
+            const scaledLabel = `${mapLabel}_scaled`
+            const extendedFC = `${ffmpegArgs.filterComplex};[${mapLabel}]${scaleFilter}[${scaledLabel}]`
+            a.push('-filter_complex', extendedFC)
+            a.push('-map', `[${scaledLabel}]`)
+          } else {
+            if (ffmpegArgs.videoMap) {
+              a.push('-map', ffmpegArgs.videoMap)
+            }
+            a.push('-vf', scaleFilter)
+          }
+
+          // Map audio output
+          if (ffmpegArgs.audioMap) {
+            a.push('-map', ffmpegArgs.audioMap)
+          }
+
+          // Codec args with quality preset CRF
+          const qp = QUALITY_PRESETS[quality]
+          const codecArgs = getFormatCodecArgs(format, qp.crfH264, qp.crfVP9)
+          a.push(...codecArgs)
+
+          // Duration limit
+          if (durationSec > 0) {
+            a.push('-t', String(durationSec))
+          }
+
+          a.push('-y', outputFilename)
+          return a
+        }
+
+        // Try with audio first; if it fails because an input lacks audio
+        // streams, retry video-only.
+        let videoExit = await ffmpeg.exec(buildVideoExportArgs(false))
+        if (videoExit !== 0) {
+          const lastLogs = ffmpegLogs.slice(-10).join('\n')
+          if (lastLogs.includes('matches no streams') || lastLogs.includes('does not contain')) {
+            // Input(s) have no audio stream — retry without audio mapping
+            ffmpegLogs.length = 0
+            videoExit = await ffmpeg.exec(buildVideoExportArgs(true))
+          }
+        }
+
+        if (videoExit !== 0) {
+          throw new Error(
+            'FFmpeg export failed' +
+            (ffmpegLogs.length ? ': ' + ffmpegLogs.slice(-5).join(' | ') : ''),
+          )
+        }
 
         if (abortRef.current) return
 
