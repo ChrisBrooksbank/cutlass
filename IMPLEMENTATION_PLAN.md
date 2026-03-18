@@ -29,7 +29,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 
 - [x] Scaffold Vite + React + TypeScript project with ESLint, Prettier, and path aliases (spec: timeline-editing.md)
 - [x] Install core dependencies: Zustand, Konva/react-konva, @ffmpeg/ffmpeg, @ffmpeg/util (spec: timeline-editing.md)
-- [ ] Define core Zustand store: project state, tracks, clips, playhead, selection (spec: timeline-editing.md)
+- [x] Define core Zustand store: project state, tracks, clips, playhead, selection (spec: timeline-editing.md)
 - [ ] Build app shell layout: media bin (left), preview (top-right), properties panel (right), timeline (bottom) (spec: timeline-editing.md)
 - [ ] Build video preview component: HTMLVideoElement sync'd to playhead position and playback state (spec: timeline-editing.md)
 
