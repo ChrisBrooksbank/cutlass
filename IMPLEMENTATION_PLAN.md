@@ -48,7 +48,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 - [x] Clip speed control (0.25x–4x) per clip with preview sync (spec: timeline-editing.md)
 - [x] Undo/redo via Zustand temporal middleware for all timeline operations (spec: timeline-editing.md)
 - [x] Keyboard shortcuts: Space, J/K/L, I/O, S, Del, Ctrl+Z/Y (spec: timeline-editing.md)
-- [ ] Thumbnail preview inside video clip blocks (extracted via canvas seek) (spec: timeline-editing.md)
+- [x] Thumbnail preview inside video clip blocks (extracted via canvas seek) (spec: timeline-editing.md)
 
 ### Phase 3: Recording
 
