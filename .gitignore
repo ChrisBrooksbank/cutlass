@@ -4,5 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# FFmpeg WASM binaries (copied from node_modules by postinstall)
+public/ffmpeg-core-mt/
+public/ffmpeg-core-st/
+
 # Local Netlify folder
 .netlify

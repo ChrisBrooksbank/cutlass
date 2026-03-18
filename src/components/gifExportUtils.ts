@@ -37,7 +37,7 @@ export const GIF_DEFAULT_WIDTH = 480
 // ---------------------------------------------------------------------------
 
 /**
- * Build the FFmpeg `-vf` filter string for the palette-generation pass.
+ * Build the FFmpeg filter string for the palette-generation pass.
  *
  * The filter chain:
  *   fps=<fps>  → limit frame rate
@@ -52,19 +52,28 @@ export function buildGifPalettegenFilter(settings: GifExportSettings): string {
 /**
  * Build the complete set of FFmpeg arguments for pass 1 (palettegen).
  *
+ * @param settings - GIF export settings (fps, width, duration).
+ * @param inputCount - Number of media inputs (default 1). When > 1,
+ *   `-filter_complex` with an explicit `[0:v]` label is used instead of
+ *   `-vf` to avoid ambiguity.
+ *
  * The caller must:
  *   1. Prepend `-i <input>` input arguments.
  *   2. Append the palette output filename (e.g. `palette.png`).
- *
- * Example (480px wide, 10 fps):
- *   ['-vf', 'fps=10,scale=480:-1:flags=lanczos,palettegen', '-y']
  */
-export function buildGifPalettegenArgs(settings: GifExportSettings): string[] {
+export function buildGifPalettegenArgs(settings: GifExportSettings, inputCount = 1): string[] {
   const args: string[] = []
   if (settings.duration != null) {
     args.push('-t', String(settings.duration))
   }
-  args.push('-vf', buildGifPalettegenFilter(settings), '-y')
+  if (inputCount > 1) {
+    // Use -filter_complex with explicit stream label to avoid -vf ambiguity
+    args.push('-filter_complex', `[0:v]${buildGifPalettegenFilter(settings)}[palout]`)
+    args.push('-map', '[palout]')
+  } else {
+    args.push('-vf', buildGifPalettegenFilter(settings))
+  }
+  args.push('-y')
   return args
 }
 
@@ -75,34 +84,38 @@ export function buildGifPalettegenArgs(settings: GifExportSettings): string[] {
 /**
  * Build the FFmpeg `-lavfi` filter graph for the palette-use pass.
  *
+ * @param settings - GIF export settings.
+ * @param paletteInputIndex - The FFmpeg input index for palette.png
+ *   (= number of media inputs, since palette is appended last).
+ *   Defaults to 1 for single-input projects.
+ *
  * The filter graph:
  *   [0:v] fps=<fps>,scale=<width>:-1:flags=lanczos [x]
- *   [x][1:v] paletteuse
- *
- * Input 0 is the source video; input 1 is the palette PNG from pass 1.
+ *   [x][<paletteIndex>:v] paletteuse
  */
-export function buildGifPaletteUseFilter(settings: GifExportSettings): string {
+export function buildGifPaletteUseFilter(settings: GifExportSettings, paletteInputIndex = 1): string {
   const { fps, width } = settings
-  return `[0:v] fps=${fps},scale=${width}:-1:flags=lanczos [x]; [x][1:v] paletteuse`
+  return `[0:v] fps=${fps},scale=${width}:-1:flags=lanczos [x]; [x][${paletteInputIndex}:v] paletteuse`
 }
 
 /**
  * Build the complete set of FFmpeg arguments for pass 2 (paletteuse).
  *
- * The caller must:
- *   1. Prepend `-i <input>` for the source video.
- *   2. Prepend `-i <palette.png>` for the palette (input index 1).
- *   3. Append the GIF output filename (e.g. `output.gif`).
+ * @param settings - GIF export settings.
+ * @param paletteInputIndex - The FFmpeg input index for palette.png
+ *   (= number of media inputs). Defaults to 1.
  *
- * Example (480px wide, 10 fps):
- *   ['-lavfi', 'fps=10,scale=480:-1:flags=lanczos [x]; [x][1:v] paletteuse', '-y']
+ * The caller must:
+ *   1. Prepend `-i <input>` for all source media files.
+ *   2. Prepend `-i <palette.png>` for the palette (last input).
+ *   3. Append the GIF output filename (e.g. `output.gif`).
  */
-export function buildGifPaletteUseArgs(settings: GifExportSettings): string[] {
+export function buildGifPaletteUseArgs(settings: GifExportSettings, paletteInputIndex = 1): string[] {
   const args: string[] = []
   if (settings.duration != null) {
     args.push('-t', String(settings.duration))
   }
-  args.push('-lavfi', buildGifPaletteUseFilter(settings), '-y')
+  args.push('-lavfi', buildGifPaletteUseFilter(settings, paletteInputIndex), '-y')
   return args
 }
 

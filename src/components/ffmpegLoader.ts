@@ -117,21 +117,29 @@ export async function loadFFmpeg(options: FFmpegLoadOptions = {}): Promise<FFmpe
   const useMultiThread = supportsSharedArrayBuffer()
   const rawURLs = buildFFmpegCoreURLs(useMultiThread, options.mtCoreBase, options.stCoreBase)
 
-  try {
-    // Assets are served locally from public/, so no CORS conversion needed.
-    const { coreURL, wasmURL, workerURL } = rawURLs
+  const { coreURL, wasmURL, workerURL } = rawURLs
+  const loadConfig = useMultiThread && workerURL
+    ? { coreURL, wasmURL, workerURL }
+    : { coreURL, wasmURL }
 
-    if (useMultiThread && workerURL) {
-      await ffmpeg.load({ coreURL, wasmURL, workerURL })
-    } else {
-      await ffmpeg.load({ coreURL, wasmURL })
+  // Retry up to 2 times with exponential backoff for network resilience
+  const MAX_RETRIES = 2
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await ffmpeg.load(loadConfig)
+      break
+    } catch (err) {
+      if (attempt < MAX_RETRIES) {
+        const delay = 1000 * 2 ** attempt // 1s, 2s
+        await new Promise((r) => setTimeout(r, delay))
+        continue
+      }
+      const message = err instanceof Error ? err.message : String(err)
+      throw new Error(
+        `Failed to load FFmpeg: ${message}. ` +
+        'This may be caused by missing assets, network issues, or an unsupported browser.',
+      )
     }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    throw new Error(
-      `Failed to load FFmpeg: ${message}. ` +
-      'This may be caused by missing assets, network issues, or an unsupported browser.',
-    )
   }
 
   return ffmpeg

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import type { ExportFormat, ResolutionPreset } from '@/components/exportFormatUtils'
 import {
   FORMAT_LABELS,
@@ -231,6 +231,21 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
 
   const project = useEditorStore((s) => s.project)
 
+  // Cleanup FFmpeg worker on unmount (bug fix: prevents leaked workers/WASM memory)
+  useEffect(() => {
+    return () => {
+      abortRef.current = true
+      if (ffmpegRef.current) {
+        try {
+          ffmpegRef.current.terminate()
+        } catch {
+          // Already terminated
+        }
+        ffmpegRef.current = null
+      }
+    }
+  }, [])
+
   const canvasOnlyEffects = useMemo(() => detectCanvasOnlyEffects(project), [project])
   const orphanedClips = useMemo(() => findOrphanedClips(project), [project])
 
@@ -287,18 +302,19 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         // Pass 1: palettegen
         const paletteArgs = [
           ...inputs.flatMap((_, i) => ['-i', `input${i}${getExtFromUrl(inputs[i].url)}`]),
-          ...buildGifPalettegenArgs(gifSettings),
+          ...buildGifPalettegenArgs(gifSettings, inputs.length),
           'palette.png',
         ]
         await ffmpeg.exec(paletteArgs)
 
         if (abortRef.current) return
 
-        // Pass 2: paletteuse
+        // Pass 2: paletteuse — palette.png is the last input (index = inputs.length)
+        const paletteInputIndex = inputs.length
         const gifArgs = [
           ...inputs.flatMap((_, i) => ['-i', `input${i}${getExtFromUrl(inputs[i].url)}`]),
           '-i', 'palette.png',
-          ...buildGifPaletteUseArgs(gifSettings),
+          ...buildGifPaletteUseArgs(gifSettings, paletteInputIndex),
           'output.gif',
         ]
         await ffmpeg.exec(gifArgs)
@@ -379,6 +395,16 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
       const msg = err instanceof Error ? err.message : String(err)
       setErrorMessage(msg)
       setExportStatus('error')
+    } finally {
+      // Terminate FFmpeg worker + free ~32MB WASM memory after every export
+      if (ffmpegRef.current) {
+        try {
+          ffmpegRef.current.terminate()
+        } catch {
+          // Already terminated
+        }
+        ffmpegRef.current = null
+      }
     }
   }, [exportType, format, filename, project, durationSec, gifFps, gifWidth, quality, preset, customWidth, customHeight])
 
