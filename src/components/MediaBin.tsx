@@ -2,6 +2,7 @@ import { useRef, useCallback } from 'react'
 import { useEditorStore } from '@/store'
 import type { MediaAsset } from '@/store'
 import { DRAG_ASSET_TYPE, getAssetTypeFromMime, getMediaDuration } from './mediaBinUtils'
+import RecordingControls from './RecordingControls'
 
 function assetIcon(type: MediaAsset['type']): string {
   if (type === 'video') return '▶'
@@ -26,6 +27,15 @@ export default function MediaBin() {
   const mediaAssets = useEditorStore((s) => s.project.mediaAssets)
   const addMediaAsset = useEditorStore((s) => s.addMediaAsset)
   const removeMediaAsset = useEditorStore((s) => s.removeMediaAsset)
+
+  const handleRecordingComplete = useCallback(
+    (blob: Blob, durationSeconds: number) => {
+      const url = URL.createObjectURL(blob)
+      const name = `Screen Recording ${new Date().toLocaleTimeString()}`
+      addMediaAsset({ name, type: 'video', url, duration: durationSeconds })
+    },
+    [addMediaAsset],
+  )
 
   const processFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -105,6 +115,7 @@ export default function MediaBin() {
           onChange={handleFileInputChange}
         />
       </div>
+      <RecordingControls onRecordingComplete={handleRecordingComplete} />
       <div
         className="panel-body"
         onDragOver={handleDropZoneDragOver}

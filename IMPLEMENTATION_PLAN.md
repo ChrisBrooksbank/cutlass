@@ -52,7 +52,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 
 ### Phase 3: Recording
 
-- [ ] Screen capture via getDisplayMedia (video + system audio); start/pause/resume/stop controls + timer UI (spec: recording.md)
+- [x] Screen capture via getDisplayMedia (video + system audio); start/pause/resume/stop controls + timer UI (spec: recording.md)
 - [ ] MediaRecorder encoding WebM chunks; stream chunks to avoid memory issues on long recordings (spec: recording.md)
 - [ ] Auto-create media asset (blob + thumbnail + duration) when recording stops and place on timeline (spec: recording.md)
 - [ ] Voiceover recording via getUserMedia(audio) as separate audio track on timeline (spec: recording.md)
