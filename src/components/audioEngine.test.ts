@@ -22,6 +22,15 @@ function makeGainNode() {
   }
 }
 
+function makeBiquadFilterNode() {
+  return {
+    type: 'allpass' as BiquadFilterType,
+    frequency: { value: 0 },
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  }
+}
+
 function makeMediaElementSource() {
   return {
     connect: vi.fn(),
@@ -36,6 +45,7 @@ function makeAudioContext() {
     close: vi.fn().mockResolvedValue(undefined),
     createGain: vi.fn(() => makeGainNode()),
     createAnalyser: vi.fn(() => makeAnalyserNode()),
+    createBiquadFilter: vi.fn(() => makeBiquadFilterNode()),
     createMediaElementSource: vi.fn(() => makeMediaElementSource()),
   }
   return context
@@ -67,25 +77,36 @@ describe('createAudioRoutingGraph', () => {
     expect(graph.context).toBe(mockCtx)
   })
 
-  it('connectTrack creates source, gain, and analyser nodes wired together', () => {
+  it('connectTrack creates source, filter, gain, and analyser nodes wired together', () => {
     const graph = makeGraph()
     const el = makeElement()
 
     graph.connectTrack('t1', el)
 
     expect(mockCtx.createMediaElementSource).toHaveBeenCalledWith(el)
+    expect(mockCtx.createBiquadFilter).toHaveBeenCalledTimes(1)
     expect(mockCtx.createGain).toHaveBeenCalledTimes(1)
     expect(mockCtx.createAnalyser).toHaveBeenCalledTimes(1)
 
-    // Source should connect to gain
     const source = mockCtx.createMediaElementSource.mock.results[0].value
+    const filter = mockCtx.createBiquadFilter.mock.results[0].value
     const gain = mockCtx.createGain.mock.results[0].value
     const analyser = mockCtx.createAnalyser.mock.results[0].value
-    expect(source.connect).toHaveBeenCalledWith(gain)
-    // Gain should connect to analyser
+
+    // Signal chain: source → filter → gain → analyser → destination
+    expect(source.connect).toHaveBeenCalledWith(filter)
+    expect(filter.connect).toHaveBeenCalledWith(gain)
     expect(gain.connect).toHaveBeenCalledWith(analyser)
-    // Analyser should connect to destination
     expect(analyser.connect).toHaveBeenCalledWith(mockCtx.destination)
+  })
+
+  it('connectTrack initialises filter as allpass (disabled) at 80 Hz', () => {
+    const graph = makeGraph()
+    graph.connectTrack('t1', makeElement())
+
+    const filter = mockCtx.createBiquadFilter.mock.results[0].value
+    expect(filter.type).toBe('allpass')
+    expect(filter.frequency.value).toBe(80)
   })
 
   it('getGainNode returns the GainNode after connectTrack', () => {
@@ -116,6 +137,20 @@ describe('createAudioRoutingGraph', () => {
     expect(graph.getAnalyserNode('unknown')).toBeUndefined()
   })
 
+  it('getFilterNode returns the BiquadFilterNode after connectTrack', () => {
+    const graph = makeGraph()
+    graph.connectTrack('t1', makeElement())
+
+    const filterNode = graph.getFilterNode('t1')
+    expect(filterNode).toBeDefined()
+    expect(filterNode).toBe(mockCtx.createBiquadFilter.mock.results[0].value)
+  })
+
+  it('getFilterNode returns undefined for unknown trackId', () => {
+    const graph = makeGraph()
+    expect(graph.getFilterNode('unknown')).toBeUndefined()
+  })
+
   it('setGain updates gain.gain.value', () => {
     const graph = makeGraph()
     graph.connectTrack('t1', makeElement())
@@ -132,21 +167,50 @@ describe('createAudioRoutingGraph', () => {
     expect(() => graph.setGain('ghost', 0.5)).not.toThrow()
   })
 
+  it('setNoiseReduction enables highpass filter', () => {
+    const graph = makeGraph()
+    graph.connectTrack('t1', makeElement())
+
+    graph.setNoiseReduction('t1', true)
+
+    const filter = mockCtx.createBiquadFilter.mock.results[0].value
+    expect(filter.type).toBe('highpass')
+  })
+
+  it('setNoiseReduction disables filter by switching to allpass', () => {
+    const graph = makeGraph()
+    graph.connectTrack('t1', makeElement())
+
+    graph.setNoiseReduction('t1', true)
+    graph.setNoiseReduction('t1', false)
+
+    const filter = mockCtx.createBiquadFilter.mock.results[0].value
+    expect(filter.type).toBe('allpass')
+  })
+
+  it('setNoiseReduction is a no-op for unconnected tracks', () => {
+    const graph = makeGraph()
+    expect(() => graph.setNoiseReduction('ghost', true)).not.toThrow()
+  })
+
   it('disconnectTrack removes nodes and disconnects them', () => {
     const graph = makeGraph()
     graph.connectTrack('t1', makeElement())
 
     const source = mockCtx.createMediaElementSource.mock.results[0].value
+    const filter = mockCtx.createBiquadFilter.mock.results[0].value
     const gain = mockCtx.createGain.mock.results[0].value
     const analyser = mockCtx.createAnalyser.mock.results[0].value
 
     graph.disconnectTrack('t1')
 
     expect(source.disconnect).toHaveBeenCalled()
+    expect(filter.disconnect).toHaveBeenCalled()
     expect(gain.disconnect).toHaveBeenCalled()
     expect(analyser.disconnect).toHaveBeenCalled()
     expect(graph.getGainNode('t1')).toBeUndefined()
     expect(graph.getAnalyserNode('t1')).toBeUndefined()
+    expect(graph.getFilterNode('t1')).toBeUndefined()
   })
 
   it('disconnectTrack is a no-op for unconnected tracks', () => {
@@ -162,6 +226,7 @@ describe('createAudioRoutingGraph', () => {
     graph.connectTrack('t1', el1)
 
     const source1 = mockCtx.createMediaElementSource.mock.results[0].value
+    const filter1 = mockCtx.createBiquadFilter.mock.results[0].value
     const gain1 = mockCtx.createGain.mock.results[0].value
     const analyser1 = mockCtx.createAnalyser.mock.results[0].value
 
@@ -169,11 +234,13 @@ describe('createAudioRoutingGraph', () => {
 
     // Old nodes should be disconnected
     expect(source1.disconnect).toHaveBeenCalled()
+    expect(filter1.disconnect).toHaveBeenCalled()
     expect(gain1.disconnect).toHaveBeenCalled()
     expect(analyser1.disconnect).toHaveBeenCalled()
 
     // New nodes created
     expect(mockCtx.createMediaElementSource).toHaveBeenCalledTimes(2)
+    expect(mockCtx.createBiquadFilter).toHaveBeenCalledTimes(2)
     expect(mockCtx.createGain).toHaveBeenCalledTimes(2)
     expect(mockCtx.createAnalyser).toHaveBeenCalledTimes(2)
 
@@ -190,12 +257,14 @@ describe('createAudioRoutingGraph', () => {
     graph.connectTrack('t2', makeElement())
 
     const sources = mockCtx.createMediaElementSource.mock.results.map((r) => r.value)
+    const filters = mockCtx.createBiquadFilter.mock.results.map((r) => r.value)
     const gains = mockCtx.createGain.mock.results.map((r) => r.value)
     const analysers = mockCtx.createAnalyser.mock.results.map((r) => r.value)
 
     graph.dispose()
 
     for (const s of sources) expect(s.disconnect).toHaveBeenCalled()
+    for (const f of filters) expect(f.disconnect).toHaveBeenCalled()
     for (const g of gains) expect(g.disconnect).toHaveBeenCalled()
     for (const a of analysers) expect(a.disconnect).toHaveBeenCalled()
     expect(mockCtx.close).toHaveBeenCalled()
@@ -205,6 +274,8 @@ describe('createAudioRoutingGraph', () => {
     expect(graph.getGainNode('t2')).toBeUndefined()
     expect(graph.getAnalyserNode('t1')).toBeUndefined()
     expect(graph.getAnalyserNode('t2')).toBeUndefined()
+    expect(graph.getFilterNode('t1')).toBeUndefined()
+    expect(graph.getFilterNode('t2')).toBeUndefined()
   })
 
   it('supports multiple independent tracks', () => {
@@ -218,5 +289,18 @@ describe('createAudioRoutingGraph', () => {
     const [gain1, gain2] = mockCtx.createGain.mock.results.map((r) => r.value)
     expect(gain1.gain.value).toBe(0.3)
     expect(gain2.gain.value).toBe(0.8)
+  })
+
+  it('noise reduction can be toggled independently per track', () => {
+    const graph = makeGraph()
+    graph.connectTrack('t1', makeElement())
+    graph.connectTrack('t2', makeElement())
+
+    graph.setNoiseReduction('t1', true)
+    graph.setNoiseReduction('t2', false)
+
+    const [filter1, filter2] = mockCtx.createBiquadFilter.mock.results.map((r) => r.value)
+    expect(filter1.type).toBe('highpass')
+    expect(filter2.type).toBe('allpass')
   })
 })

@@ -65,7 +65,7 @@ Project scaffold → State + layout → Timeline core → Recording → Audio �
 - [x] Audio waveform extraction: pre-compute Float32Array and render inside audio clip blocks (spec: audio.md)
 - [x] Background music: user uploads audio file, placed on dedicated audio track (spec: audio.md)
 - [x] Audio level metering: visual VU meter bars during playback (spec: audio.md)
-- [ ] Noise reduction: BiquadFilterNode high-pass filter per audio track (spec: audio.md)
+- [x] Noise reduction: BiquadFilterNode high-pass filter per audio track (spec: audio.md)
 
 ### Phase 5: Effects & Annotations
 

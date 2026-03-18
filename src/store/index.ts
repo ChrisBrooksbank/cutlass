@@ -34,6 +34,7 @@ interface EditorActions {
   setTrackMuted: (trackId: string, muted: boolean) => void
   setTrackLocked: (trackId: string, locked: boolean) => void
   setTrackVolume: (trackId: string, volume: number) => void
+  setTrackNoiseReduction: (trackId: string, enabled: boolean) => void
   renameTrack: (trackId: string, name: string) => void
 
   // Clips
@@ -169,6 +170,7 @@ export const useEditorStore = create<EditorStore>()(
             muted: false,
             locked: false,
             volume: 1,
+            noiseReduction: false,
             clips: [],
           }
           return {
@@ -247,6 +249,18 @@ export const useEditorStore = create<EditorStore>()(
             tracks: updateTrackInProject(state.project.tracks, trackId, (t) => ({
               ...t,
               volume: clamped,
+            })),
+          },
+        }))
+      },
+
+      setTrackNoiseReduction: (trackId, enabled) => {
+        set((state) => ({
+          project: {
+            ...state.project,
+            tracks: updateTrackInProject(state.project.tracks, trackId, (t) => ({
+              ...t,
+              noiseReduction: enabled,
             })),
           },
         }))

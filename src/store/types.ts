@@ -37,6 +37,7 @@ export interface Track {
   muted: boolean
   locked: boolean
   volume: number // 0–1, default 1
+  noiseReduction: boolean // high-pass filter toggle, default false
   clips: Clip[]
 }
 

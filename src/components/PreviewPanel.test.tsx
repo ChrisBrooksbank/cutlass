@@ -15,6 +15,7 @@ function makeTrack(overrides: Partial<Track> = {}): Track {
     muted: false,
     locked: false,
     volume: 1,
+    noiseReduction: false,
     clips: [],
     ...overrides,
   }

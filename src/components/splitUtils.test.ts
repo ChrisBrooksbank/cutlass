@@ -10,6 +10,7 @@ function makeTrack(clips: { id: string; startTime: number; duration: number }[])
     muted: false,
     locked: false,
     volume: 1,
+    noiseReduction: false,
     clips: clips.map((c) => ({
       ...c,
       trackId: 't1',

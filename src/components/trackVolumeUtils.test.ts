@@ -45,8 +45,10 @@ describe('applyTrackGain', () => {
       connectTrack: vi.fn(),
       disconnectTrack: vi.fn(),
       setGain: vi.fn(),
+      setNoiseReduction: vi.fn(),
       getGainNode: vi.fn(),
       getAnalyserNode: vi.fn(),
+      getFilterNode: vi.fn(),
       dispose: vi.fn(),
     }
   }

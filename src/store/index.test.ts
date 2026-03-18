@@ -141,6 +141,26 @@ describe('tracks', () => {
     getStore().renameTrack(trackId, 'Main Camera')
     expect(getStore().project.tracks[0].name).toBe('Main Camera')
   })
+
+  it('new tracks have noiseReduction false by default', () => {
+    getStore().addTrack('audio')
+    expect(getStore().project.tracks[0].noiseReduction).toBe(false)
+  })
+
+  it('setTrackNoiseReduction enables noise reduction', () => {
+    getStore().addTrack('audio')
+    const trackId = getStore().project.tracks[0].id
+    getStore().setTrackNoiseReduction(trackId, true)
+    expect(getStore().project.tracks[0].noiseReduction).toBe(true)
+  })
+
+  it('setTrackNoiseReduction disables noise reduction', () => {
+    getStore().addTrack('audio')
+    const trackId = getStore().project.tracks[0].id
+    getStore().setTrackNoiseReduction(trackId, true)
+    getStore().setTrackNoiseReduction(trackId, false)
+    expect(getStore().project.tracks[0].noiseReduction).toBe(false)
+  })
 })
 
 // ---------------------------------------------------------------------------
