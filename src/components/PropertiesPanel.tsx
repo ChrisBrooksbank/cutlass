@@ -10,6 +10,11 @@ import {
 } from '@/components/keyframeEditorUtils'
 import { getEffectHandler } from '@/components/effectRegistry'
 import { computeTextOverlay } from '@/components/textOverlayUtils'
+import {
+  computeShapeRect,
+  computeShapeCircle,
+  computeShapeArrow,
+} from '@/components/shapeAnnotationUtils'
 
 // ---------------------------------------------------------------------------
 // Blur effect parameter editor
@@ -333,6 +338,471 @@ function TextEffectEditor({ clipId, effect }: { clipId: string; effect: Effect }
 }
 
 // ---------------------------------------------------------------------------
+// Shape rect effect editor
+// ---------------------------------------------------------------------------
+
+function ShapeRectEditor({ clipId, effect }: { clipId: string; effect: Effect }) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const removeEffect = useEditorStore((s) => s.removeEffect)
+
+  const shape = computeShapeRect(effect)
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#1a1a1a',
+    border: '1px solid #333',
+    color: '#fff',
+    borderRadius: '3px',
+    padding: '2px 4px',
+    fontSize: '11px',
+  }
+  const labelStyle: React.CSSProperties = { color: '#666', marginBottom: '1px', fontSize: '10px' }
+
+  return (
+    <div
+      style={{
+        marginBottom: '8px',
+        border: '1px solid #333',
+        borderRadius: '4px',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 8px',
+          background: '#2a2a2a',
+          fontSize: '11px',
+          color: '#aaa',
+        }}
+      >
+        <span>Rectangle</span>
+        <button
+          data-testid={`remove-shape-rect-${effect.id}`}
+          onClick={() => removeEffect(clipId, effect.id)}
+          title="Remove rectangle"
+          style={{
+            background: 'transparent',
+            border: '1px solid #444',
+            color: '#888',
+            borderRadius: '3px',
+            cursor: 'pointer',
+            padding: '2px 5px',
+            fontSize: '12px',
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <div
+        style={{
+          padding: '6px 8px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '6px',
+        }}
+      >
+        <div>
+          <div style={labelStyle}>X</div>
+          <input
+            type="number"
+            data-testid={`shape-rect-x-${effect.id}`}
+            value={shape.x}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { x: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Y</div>
+          <input
+            type="number"
+            data-testid={`shape-rect-y-${effect.id}`}
+            value={shape.y}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { y: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Width</div>
+          <input
+            type="number"
+            data-testid={`shape-rect-width-${effect.id}`}
+            value={shape.width}
+            min={1}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                width: Math.max(1, parseFloat(e.target.value) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Height</div>
+          <input
+            type="number"
+            data-testid={`shape-rect-height-${effect.id}`}
+            value={shape.height}
+            min={1}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                height: Math.max(1, parseFloat(e.target.value) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Stroke Color</div>
+          <input
+            type="color"
+            data-testid={`shape-rect-stroke-color-${effect.id}`}
+            value={shape.strokeColor.startsWith('#') ? shape.strokeColor : '#ff4444'}
+            onChange={(e) => updateEffectParams(clipId, effect.id, { strokeColor: e.target.value })}
+            style={{ ...fieldStyle, padding: '1px 2px', height: '24px', cursor: 'pointer' }}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Stroke Width</div>
+          <input
+            type="number"
+            data-testid={`shape-rect-stroke-width-${effect.id}`}
+            value={shape.strokeWidth}
+            min={1}
+            max={20}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                strokeWidth: Math.max(1, parseInt(e.target.value, 10) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Shape circle effect editor
+// ---------------------------------------------------------------------------
+
+function ShapeCircleEditor({ clipId, effect }: { clipId: string; effect: Effect }) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const removeEffect = useEditorStore((s) => s.removeEffect)
+
+  const shape = computeShapeCircle(effect)
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#1a1a1a',
+    border: '1px solid #333',
+    color: '#fff',
+    borderRadius: '3px',
+    padding: '2px 4px',
+    fontSize: '11px',
+  }
+  const labelStyle: React.CSSProperties = { color: '#666', marginBottom: '1px', fontSize: '10px' }
+
+  return (
+    <div
+      style={{
+        marginBottom: '8px',
+        border: '1px solid #333',
+        borderRadius: '4px',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 8px',
+          background: '#2a2a2a',
+          fontSize: '11px',
+          color: '#aaa',
+        }}
+      >
+        <span>Circle</span>
+        <button
+          data-testid={`remove-shape-circle-${effect.id}`}
+          onClick={() => removeEffect(clipId, effect.id)}
+          title="Remove circle"
+          style={{
+            background: 'transparent',
+            border: '1px solid #444',
+            color: '#888',
+            borderRadius: '3px',
+            cursor: 'pointer',
+            padding: '2px 5px',
+            fontSize: '12px',
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <div
+        style={{
+          padding: '6px 8px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '6px',
+        }}
+      >
+        <div>
+          <div style={labelStyle}>Center X</div>
+          <input
+            type="number"
+            data-testid={`shape-circle-x-${effect.id}`}
+            value={shape.x}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { x: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Center Y</div>
+          <input
+            type="number"
+            data-testid={`shape-circle-y-${effect.id}`}
+            value={shape.y}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { y: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Radius X</div>
+          <input
+            type="number"
+            data-testid={`shape-circle-radiusX-${effect.id}`}
+            value={shape.radiusX}
+            min={1}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                radiusX: Math.max(1, parseFloat(e.target.value) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Radius Y</div>
+          <input
+            type="number"
+            data-testid={`shape-circle-radiusY-${effect.id}`}
+            value={shape.radiusY}
+            min={1}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                radiusY: Math.max(1, parseFloat(e.target.value) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Stroke Color</div>
+          <input
+            type="color"
+            data-testid={`shape-circle-stroke-color-${effect.id}`}
+            value={shape.strokeColor.startsWith('#') ? shape.strokeColor : '#44aaff'}
+            onChange={(e) => updateEffectParams(clipId, effect.id, { strokeColor: e.target.value })}
+            style={{ ...fieldStyle, padding: '1px 2px', height: '24px', cursor: 'pointer' }}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Stroke Width</div>
+          <input
+            type="number"
+            data-testid={`shape-circle-stroke-width-${effect.id}`}
+            value={shape.strokeWidth}
+            min={1}
+            max={20}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                strokeWidth: Math.max(1, parseInt(e.target.value, 10) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Shape arrow effect editor
+// ---------------------------------------------------------------------------
+
+function ShapeArrowEditor({ clipId, effect }: { clipId: string; effect: Effect }) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const removeEffect = useEditorStore((s) => s.removeEffect)
+
+  const shape = computeShapeArrow(effect)
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#1a1a1a',
+    border: '1px solid #333',
+    color: '#fff',
+    borderRadius: '3px',
+    padding: '2px 4px',
+    fontSize: '11px',
+  }
+  const labelStyle: React.CSSProperties = { color: '#666', marginBottom: '1px', fontSize: '10px' }
+
+  return (
+    <div
+      style={{
+        marginBottom: '8px',
+        border: '1px solid #333',
+        borderRadius: '4px',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 8px',
+          background: '#2a2a2a',
+          fontSize: '11px',
+          color: '#aaa',
+        }}
+      >
+        <span>Arrow</span>
+        <button
+          data-testid={`remove-shape-arrow-${effect.id}`}
+          onClick={() => removeEffect(clipId, effect.id)}
+          title="Remove arrow"
+          style={{
+            background: 'transparent',
+            border: '1px solid #444',
+            color: '#888',
+            borderRadius: '3px',
+            cursor: 'pointer',
+            padding: '2px 5px',
+            fontSize: '12px',
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <div
+        style={{
+          padding: '6px 8px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '6px',
+        }}
+      >
+        <div>
+          <div style={labelStyle}>Start X</div>
+          <input
+            type="number"
+            data-testid={`shape-arrow-x1-${effect.id}`}
+            value={shape.x1}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { x1: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Start Y</div>
+          <input
+            type="number"
+            data-testid={`shape-arrow-y1-${effect.id}`}
+            value={shape.y1}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { y1: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>End X</div>
+          <input
+            type="number"
+            data-testid={`shape-arrow-x2-${effect.id}`}
+            value={shape.x2}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { x2: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>End Y</div>
+          <input
+            type="number"
+            data-testid={`shape-arrow-y2-${effect.id}`}
+            value={shape.y2}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, { y2: parseFloat(e.target.value) || 0 })
+            }
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Color</div>
+          <input
+            type="color"
+            data-testid={`shape-arrow-color-${effect.id}`}
+            value={shape.color.startsWith('#') ? shape.color : '#ffdd00'}
+            onChange={(e) => updateEffectParams(clipId, effect.id, { color: e.target.value })}
+            style={{ ...fieldStyle, padding: '1px 2px', height: '24px', cursor: 'pointer' }}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Stroke Width</div>
+          <input
+            type="number"
+            data-testid={`shape-arrow-stroke-width-${effect.id}`}
+            value={shape.strokeWidth}
+            min={1}
+            max={20}
+            step={1}
+            onChange={(e) =>
+              updateEffectParams(clipId, effect.id, {
+                strokeWidth: Math.max(1, parseInt(e.target.value, 10) || 1),
+              })
+            }
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Effects section (add / manage effects per clip)
 // ---------------------------------------------------------------------------
 
@@ -351,9 +821,53 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
     addEffect(clipId, { type: 'text', params: { ...handler.defaultParams }, keyframes: [] })
   }
 
+  function handleAddShapeRect() {
+    const handler = getEffectHandler('shape-rect')
+    if (!handler) return
+    addEffect(clipId, { type: 'shape-rect', params: { ...handler.defaultParams }, keyframes: [] })
+  }
+
+  function handleAddShapeCircle() {
+    const handler = getEffectHandler('shape-circle')
+    if (!handler) return
+    addEffect(clipId, {
+      type: 'shape-circle',
+      params: { ...handler.defaultParams },
+      keyframes: [],
+    })
+  }
+
+  function handleAddShapeArrow() {
+    const handler = getEffectHandler('shape-arrow')
+    if (!handler) return
+    addEffect(clipId, {
+      type: 'shape-arrow',
+      params: { ...handler.defaultParams },
+      keyframes: [],
+    })
+  }
+
   const blurEffects = effects.filter((e) => e.type === 'blur')
   const textEffects = effects.filter((e) => e.type === 'text')
-  const hasEffects = blurEffects.length > 0 || textEffects.length > 0
+  const rectEffects = effects.filter((e) => e.type === 'shape-rect')
+  const circleEffects = effects.filter((e) => e.type === 'shape-circle')
+  const arrowEffects = effects.filter((e) => e.type === 'shape-arrow')
+  const hasEffects =
+    blurEffects.length > 0 ||
+    textEffects.length > 0 ||
+    rectEffects.length > 0 ||
+    circleEffects.length > 0 ||
+    arrowEffects.length > 0
+
+  const btnStyle: React.CSSProperties = {
+    fontSize: '11px',
+    padding: '2px 8px',
+    background: '#333',
+    border: '1px solid #555',
+    color: '#ccc',
+    borderRadius: '3px',
+    cursor: 'pointer',
+  }
 
   return (
     <div>
@@ -375,36 +889,29 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
         >
           Effects
         </div>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <button
-            data-testid="add-blur-effect"
-            onClick={handleAddBlur}
-            style={{
-              fontSize: '11px',
-              padding: '2px 8px',
-              background: '#333',
-              border: '1px solid #555',
-              color: '#ccc',
-              borderRadius: '3px',
-              cursor: 'pointer',
-            }}
-          >
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button data-testid="add-blur-effect" onClick={handleAddBlur} style={btnStyle}>
             + Blur
           </button>
-          <button
-            data-testid="add-text-effect"
-            onClick={handleAddText}
-            style={{
-              fontSize: '11px',
-              padding: '2px 8px',
-              background: '#333',
-              border: '1px solid #555',
-              color: '#ccc',
-              borderRadius: '3px',
-              cursor: 'pointer',
-            }}
-          >
+          <button data-testid="add-text-effect" onClick={handleAddText} style={btnStyle}>
             + Text
+          </button>
+          <button data-testid="add-shape-rect-effect" onClick={handleAddShapeRect} style={btnStyle}>
+            + Rect
+          </button>
+          <button
+            data-testid="add-shape-circle-effect"
+            onClick={handleAddShapeCircle}
+            style={btnStyle}
+          >
+            + Circle
+          </button>
+          <button
+            data-testid="add-shape-arrow-effect"
+            onClick={handleAddShapeArrow}
+            style={btnStyle}
+          >
+            + Arrow
           </button>
         </div>
       </div>
@@ -420,6 +927,15 @@ function EffectsSection({ clipId, effects }: { clipId: string; effects: Effect[]
           ))}
           {textEffects.map((e) => (
             <TextEffectEditor key={e.id} clipId={clipId} effect={e} />
+          ))}
+          {rectEffects.map((e) => (
+            <ShapeRectEditor key={e.id} clipId={clipId} effect={e} />
+          ))}
+          {circleEffects.map((e) => (
+            <ShapeCircleEditor key={e.id} clipId={clipId} effect={e} />
+          ))}
+          {arrowEffects.map((e) => (
+            <ShapeArrowEditor key={e.id} clipId={clipId} effect={e} />
           ))}
         </>
       )}

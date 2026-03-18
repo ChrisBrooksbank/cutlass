@@ -9,6 +9,11 @@ import {
 } from '@/components/previewUtils'
 import { computeBlurRegion } from '@/components/blurUtils'
 import { computeTextOverlay } from '@/components/textOverlayUtils'
+import {
+  computeShapeRect,
+  computeShapeCircle,
+  computeShapeArrow,
+} from '@/components/shapeAnnotationUtils'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -304,6 +309,336 @@ function TextOverlay({
 }
 
 // ---------------------------------------------------------------------------
+// Draggable shape-rect overlay
+// ---------------------------------------------------------------------------
+
+function ShapeRectElement({
+  clipId,
+  effect,
+  displayInfo,
+}: {
+  clipId: string
+  effect: Effect
+  displayInfo: DisplayInfo
+}) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const dragRef = useRef<{
+    startMouseX: number
+    startMouseY: number
+    startX: number
+    startY: number
+  } | null>(null)
+
+  const shape = computeShapeRect(effect)
+  const { scale, offsetX, offsetY } = displayInfo
+
+  const left = offsetX + shape.x * scale
+  const top = offsetY + shape.y * scale
+  const width = shape.width * scale
+  const height = shape.height * scale
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      dragRef.current = {
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        startX: shape.x,
+        startY: shape.y,
+      }
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!dragRef.current) return
+        const dx = (ev.clientX - dragRef.current.startMouseX) / scale
+        const dy = (ev.clientY - dragRef.current.startMouseY) / scale
+        updateEffectParams(clipId, effect.id, {
+          x: Math.round(dragRef.current.startX + dx),
+          y: Math.round(dragRef.current.startY + dy),
+        })
+      }
+      const onMouseUp = () => {
+        dragRef.current = null
+        window.removeEventListener('mousemove', onMouseMove)
+        window.removeEventListener('mouseup', onMouseUp)
+      }
+      window.addEventListener('mousemove', onMouseMove)
+      window.addEventListener('mouseup', onMouseUp)
+    },
+    [clipId, effect.id, shape.x, shape.y, scale, updateEffectParams],
+  )
+
+  return (
+    <div
+      data-testid={`shape-rect-overlay-${effect.id}`}
+      onMouseDown={handleMouseDown}
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        width,
+        height,
+        border: `${Math.max(1, shape.strokeWidth * scale)}px solid ${shape.strokeColor}`,
+        background: shape.fillColor,
+        boxSizing: 'border-box',
+        cursor: 'move',
+        pointerEvents: 'all',
+      }}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Draggable shape-circle overlay
+// ---------------------------------------------------------------------------
+
+function ShapeCircleElement({
+  clipId,
+  effect,
+  displayInfo,
+}: {
+  clipId: string
+  effect: Effect
+  displayInfo: DisplayInfo
+}) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const dragRef = useRef<{
+    startMouseX: number
+    startMouseY: number
+    startX: number
+    startY: number
+  } | null>(null)
+
+  const shape = computeShapeCircle(effect)
+  const { scale, offsetX, offsetY } = displayInfo
+
+  const left = offsetX + (shape.x - shape.radiusX) * scale
+  const top = offsetY + (shape.y - shape.radiusY) * scale
+  const width = shape.radiusX * 2 * scale
+  const height = shape.radiusY * 2 * scale
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      dragRef.current = {
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        startX: shape.x,
+        startY: shape.y,
+      }
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!dragRef.current) return
+        const dx = (ev.clientX - dragRef.current.startMouseX) / scale
+        const dy = (ev.clientY - dragRef.current.startMouseY) / scale
+        updateEffectParams(clipId, effect.id, {
+          x: Math.round(dragRef.current.startX + dx),
+          y: Math.round(dragRef.current.startY + dy),
+        })
+      }
+      const onMouseUp = () => {
+        dragRef.current = null
+        window.removeEventListener('mousemove', onMouseMove)
+        window.removeEventListener('mouseup', onMouseUp)
+      }
+      window.addEventListener('mousemove', onMouseMove)
+      window.addEventListener('mouseup', onMouseUp)
+    },
+    [clipId, effect.id, shape.x, shape.y, scale, updateEffectParams],
+  )
+
+  return (
+    <div
+      data-testid={`shape-circle-overlay-${effect.id}`}
+      onMouseDown={handleMouseDown}
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        width,
+        height,
+        borderRadius: '50%',
+        border: `${Math.max(1, shape.strokeWidth * scale)}px solid ${shape.strokeColor}`,
+        background: shape.fillColor,
+        boxSizing: 'border-box',
+        cursor: 'move',
+        pointerEvents: 'all',
+      }}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Draggable shape-arrow overlay (SVG-based)
+// ---------------------------------------------------------------------------
+
+function ShapeArrowElement({
+  clipId,
+  effect,
+  displayInfo,
+}: {
+  clipId: string
+  effect: Effect
+  displayInfo: DisplayInfo
+}) {
+  const updateEffectParams = useEditorStore((s) => s.updateEffectParams)
+  const dragRef = useRef<{
+    startMouseX: number
+    startMouseY: number
+    startX1: number
+    startY1: number
+    startX2: number
+    startY2: number
+  } | null>(null)
+
+  const shape = computeShapeArrow(effect)
+  const { scale, offsetX, offsetY } = displayInfo
+
+  const sx1 = offsetX + shape.x1 * scale
+  const sy1 = offsetY + shape.y1 * scale
+  const sx2 = offsetX + shape.x2 * scale
+  const sy2 = offsetY + shape.y2 * scale
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      dragRef.current = {
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        startX1: shape.x1,
+        startY1: shape.y1,
+        startX2: shape.x2,
+        startY2: shape.y2,
+      }
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!dragRef.current) return
+        const dx = (ev.clientX - dragRef.current.startMouseX) / scale
+        const dy = (ev.clientY - dragRef.current.startMouseY) / scale
+        updateEffectParams(clipId, effect.id, {
+          x1: Math.round(dragRef.current.startX1 + dx),
+          y1: Math.round(dragRef.current.startY1 + dy),
+          x2: Math.round(dragRef.current.startX2 + dx),
+          y2: Math.round(dragRef.current.startY2 + dy),
+        })
+      }
+      const onMouseUp = () => {
+        dragRef.current = null
+        window.removeEventListener('mousemove', onMouseMove)
+        window.removeEventListener('mouseup', onMouseUp)
+      }
+      window.addEventListener('mousemove', onMouseMove)
+      window.addEventListener('mouseup', onMouseUp)
+    },
+    [clipId, effect.id, shape.x1, shape.y1, shape.x2, shape.y2, scale, updateEffectParams],
+  )
+
+  const markerId = `arrow-marker-${effect.id}`
+  const sw = Math.max(1, shape.strokeWidth * scale)
+
+  return (
+    <svg
+      data-testid={`shape-arrow-overlay-${effect.id}`}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        overflow: 'visible',
+        pointerEvents: 'none',
+      }}
+    >
+      <defs>
+        <marker id={markerId} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill={shape.color} />
+        </marker>
+      </defs>
+      <line
+        x1={sx1}
+        y1={sy1}
+        x2={sx2}
+        y2={sy2}
+        stroke={shape.color}
+        strokeWidth={sw}
+        markerEnd={`url(#${markerId})`}
+        strokeLinecap="round"
+        style={{ cursor: 'move', pointerEvents: 'stroke' }}
+        onMouseDown={handleMouseDown}
+      />
+    </svg>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Shape annotations overlay layer
+// ---------------------------------------------------------------------------
+
+function ShapeAnnotationOverlay({
+  clipId,
+  effects,
+  containerRef,
+  projectWidth,
+  projectHeight,
+}: {
+  clipId: string
+  effects: Effect[]
+  containerRef: React.RefObject<HTMLDivElement | null>
+  projectWidth: number
+  projectHeight: number
+}) {
+  const [displayInfo, setDisplayInfo] = useState<DisplayInfo>({ scale: 1, offsetX: 0, offsetY: 0 })
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const update = () => {
+      setDisplayInfo(
+        computeDisplayInfo(el.clientWidth, el.clientHeight, projectWidth, projectHeight),
+      )
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [containerRef, projectWidth, projectHeight])
+
+  const rectEffects = effects.filter((e) => e.type === 'shape-rect')
+  const circleEffects = effects.filter((e) => e.type === 'shape-circle')
+  const arrowEffects = effects.filter((e) => e.type === 'shape-arrow')
+
+  if (rectEffects.length === 0 && circleEffects.length === 0 && arrowEffects.length === 0)
+    return null
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      {rectEffects.map((effect) => (
+        <ShapeRectElement
+          key={effect.id}
+          clipId={clipId}
+          effect={effect}
+          displayInfo={displayInfo}
+        />
+      ))}
+      {circleEffects.map((effect) => (
+        <ShapeCircleElement
+          key={effect.id}
+          clipId={clipId}
+          effect={effect}
+          displayInfo={displayInfo}
+        />
+      ))}
+      {arrowEffects.map((effect) => (
+        <ShapeArrowElement
+          key={effect.id}
+          clipId={clipId}
+          effect={effect}
+          displayInfo={displayInfo}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // PreviewPanel
 // ---------------------------------------------------------------------------
 
@@ -436,6 +771,15 @@ export default function PreviewPanel() {
           )}
           {activeClip && (
             <TextOverlay
+              clipId={activeClip.id}
+              effects={activeClip.effects}
+              containerRef={containerRef}
+              projectWidth={projectWidth}
+              projectHeight={projectHeight}
+            />
+          )}
+          {activeClip && (
+            <ShapeAnnotationOverlay
               clipId={activeClip.id}
               effects={activeClip.effects}
               containerRef={containerRef}

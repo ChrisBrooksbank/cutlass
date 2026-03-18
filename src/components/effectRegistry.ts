@@ -2,6 +2,14 @@ import type { Effect } from '@/store/types'
 import { computeKenBurnsTransform, applyKenBurnsTransform } from './kenBurnsUtils'
 import { computeBlurRegion, renderBlurRegion } from './blurUtils'
 import { computeCursorPosition, renderCursorHighlight } from './cursorHighlightUtils'
+import {
+  computeShapeRect,
+  computeShapeCircle,
+  computeShapeArrow,
+  renderShapeRect,
+  renderShapeCircle,
+  renderShapeArrow,
+} from './shapeAnnotationUtils'
 
 // ---------------------------------------------------------------------------
 // Context types passed to each handler
@@ -188,6 +196,84 @@ registerEffect({
     const color = ((effect.params.color as string | undefined) ?? '#ffffff').replace('#', '')
     const fontFamily = (effect.params.fontFamily as string | undefined) ?? 'sans-serif'
     return `drawtext=text='${text}':x=${x}:y=${y}:fontsize=${fontSize}:fontcolor=${color}:fontfamily=${fontFamily}`
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Built-in effect: shape-rect (rectangle annotation)
+// ---------------------------------------------------------------------------
+
+registerEffect({
+  type: 'shape-rect',
+  displayName: 'Rectangle',
+  defaultParams: {
+    x: 100,
+    y: 100,
+    width: 200,
+    height: 120,
+    strokeColor: '#ff4444',
+    strokeWidth: 3,
+    fillColor: 'rgba(255,68,68,0.1)',
+  },
+  render(renderCtx, effect) {
+    const shape = computeShapeRect(effect)
+    renderShapeRect(renderCtx.ctx, shape)
+  },
+  toFFmpegFilter(effect) {
+    const { x, y, width, height, strokeColor } = computeShapeRect(effect)
+    const color = strokeColor.replace('#', '')
+    return `drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${color}:t=3`
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Built-in effect: shape-circle (circle/ellipse annotation)
+// ---------------------------------------------------------------------------
+
+registerEffect({
+  type: 'shape-circle',
+  displayName: 'Circle',
+  defaultParams: {
+    x: 200,
+    y: 200,
+    radiusX: 80,
+    radiusY: 60,
+    strokeColor: '#44aaff',
+    strokeWidth: 3,
+    fillColor: 'rgba(68,170,255,0.1)',
+  },
+  render(renderCtx, effect) {
+    const shape = computeShapeCircle(effect)
+    renderShapeCircle(renderCtx.ctx, shape)
+  },
+  toFFmpegFilter() {
+    // FFmpeg has no native ellipse filter; canvas-only
+    return null
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Built-in effect: shape-arrow (arrow annotation)
+// ---------------------------------------------------------------------------
+
+registerEffect({
+  type: 'shape-arrow',
+  displayName: 'Arrow',
+  defaultParams: {
+    x1: 100,
+    y1: 200,
+    x2: 400,
+    y2: 300,
+    color: '#ffdd00',
+    strokeWidth: 4,
+  },
+  render(renderCtx, effect) {
+    const shape = computeShapeArrow(effect)
+    renderShapeArrow(renderCtx.ctx, shape)
+  },
+  toFFmpegFilter() {
+    // Arrow overlay is canvas-only
+    return null
   },
 })
 
