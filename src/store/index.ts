@@ -393,6 +393,7 @@ export const useEditorStore = create<EditorStore>()(
           project: {
             ...state.project,
             tracks: updateClipInTracks(state.project.tracks, clipId, (c) => {
+              if (c.sourceOut <= c.sourceIn) return c
               const clamped = Math.min(4, Math.max(0.25, speed))
               const duration = (c.sourceOut - c.sourceIn) / clamped
               return { ...c, speed: clamped, duration }

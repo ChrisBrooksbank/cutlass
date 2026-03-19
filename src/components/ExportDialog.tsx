@@ -20,10 +20,11 @@ import {
   GIF_DEFAULT_WIDTH,
   buildGifPalettegenArgs,
   buildGifPaletteUseArgs,
+  stripBrackets,
 } from '@/components/gifExportUtils'
-import type { GifExportSettings } from '@/components/gifExportUtils'
+import type { GifExportSettings, GifFilterGraphContext } from '@/components/gifExportUtils'
 import { loadFFmpeg } from '@/components/ffmpegLoader'
-import { buildFFmpegArgs, collectInputs, findOrphanedClips } from '@/components/filterGraphUtils'
+import { buildFFmpegArgs, collectInputs, findOrphanedClips, ensureEven } from '@/components/filterGraphUtils'
 import { progressRatioToPercent } from '@/components/exportProgressUtils'
 import { getEffectHandler } from '@/components/effectRegistry'
 import { useEditorStore } from '@/store'
@@ -226,15 +227,25 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
   const [exportStatus, setExportStatus] = useState<ExportStatus>('idle')
   const [progress, setProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [exportPhase, setExportPhase] = useState('')
+  const [elapsedSec, setElapsedSec] = useState(0)
+  const [frameCount, setFrameCount] = useState<number | null>(null)
+  const [ffmpegCommands, setFfmpegCommands] = useState<{label: string, cmd: string}[]>([])
+  const [showCommands, setShowCommands] = useState(false)
   const abortRef = useRef(false)
   const ffmpegRef = useRef<Awaited<ReturnType<typeof loadFFmpeg>> | null>(null)
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const project = useEditorStore((s) => s.project)
 
-  // Cleanup FFmpeg worker on unmount (bug fix: prevents leaked workers/WASM memory)
+  // Cleanup FFmpeg worker and elapsed timer on unmount
   useEffect(() => {
     return () => {
       abortRef.current = true
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current)
+        elapsedTimerRef.current = null
+      }
       if (ffmpegRef.current) {
         try {
           ffmpegRef.current.terminate()
@@ -264,6 +275,15 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
     setExportStatus('loading')
     setProgress(0)
     setErrorMessage(null)
+    setExportPhase('Loading FFmpeg...')
+    setElapsedSec(0)
+    setFrameCount(null)
+    setFfmpegCommands([])
+    setShowCommands(false)
+
+    // Start elapsed timer
+    if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current)
+    elapsedTimerRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000)
 
     try {
       // Capture FFmpeg log lines so we can surface meaningful errors
@@ -272,7 +292,13 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
       // Load FFmpeg
       const ffmpeg = await loadFFmpeg({
         onLog: (event) => {
+          if (ffmpegLogs.length > 500) ffmpegLogs.splice(0, ffmpegLogs.length - 500)
           ffmpegLogs.push(event.message)
+          // Parse frame count from FFmpeg output
+          const frameMatch = event.message.match(/frame=\s*(\d+)/)
+          if (frameMatch) {
+            setFrameCount(Number(frameMatch[1]))
+          }
         },
         onProgress: (event) => {
           if (!abortRef.current) {
@@ -286,9 +312,15 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
       if (abortRef.current) return
 
       setExportStatus('exporting')
+      setExportPhase('Writing input files...')
 
       // Write source media files to FFmpeg's virtual FS
       const inputs = collectInputs(project)
+
+      if (inputs.length === 0) {
+        throw new Error('No valid media clips to export. Add media to your project before exporting.')
+      }
+
       for (let i = 0; i < inputs.length; i++) {
         const inputName = `input${i}${getExtFromUrl(inputs[i].url)}`
         const data = await fetchFile(inputs[i].url)
@@ -296,6 +328,8 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
       }
 
       if (abortRef.current) return
+
+      const capturedCommands: {label: string, cmd: string}[] = []
 
       if (exportType === 'gif') {
         // GIF two-pass pipeline
@@ -305,12 +339,24 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           duration: durationSec > 0 ? durationSec : undefined,
         }
 
+        // Build project filter graph so GIF output matches the preview
+        // (includes trim, speed, effects, transitions, multi-clip composition)
+        const ffmpegArgs = buildFFmpegArgs(project, { skipAudio: true })
+        const filterGraph: GifFilterGraphContext | undefined =
+          ffmpegArgs.filterComplex
+            ? { filterComplex: ffmpegArgs.filterComplex, videoMapLabel: ffmpegArgs.videoMap }
+            : undefined
+
         // Pass 1: palettegen
+        setExportPhase('Pass 1/2: Generating palette...')
         const paletteArgs = [
           ...inputs.flatMap((_, i) => ['-i', `input${i}${getExtFromUrl(inputs[i].url)}`]),
-          ...buildGifPalettegenArgs(gifSettings, inputs.length),
+          ...buildGifPalettegenArgs(gifSettings, inputs.length, filterGraph),
           'palette.png',
         ]
+        capturedCommands.push({ label: 'Pass 1: palettegen', cmd: `ffmpeg ${paletteArgs.join(' ')}` })
+        setFfmpegCommands([...capturedCommands])
+
         const paletteExit = await ffmpeg.exec(paletteArgs)
         if (paletteExit !== 0) {
           throw new Error(
@@ -322,13 +368,17 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         if (abortRef.current) return
 
         // Pass 2: paletteuse — palette.png is the last input (index = inputs.length)
+        setExportPhase('Pass 2/2: Encoding GIF...')
         const paletteInputIndex = inputs.length
         const gifArgs = [
           ...inputs.flatMap((_, i) => ['-i', `input${i}${getExtFromUrl(inputs[i].url)}`]),
           '-i', 'palette.png',
-          ...buildGifPaletteUseArgs(gifSettings, paletteInputIndex),
+          ...buildGifPaletteUseArgs(gifSettings, paletteInputIndex, filterGraph),
           'output.gif',
         ]
+        capturedCommands.push({ label: 'Pass 2: paletteuse', cmd: `ffmpeg ${gifArgs.join(' ')}` })
+        setFfmpegCommands([...capturedCommands])
+
         const gifExit = await ffmpeg.exec(gifArgs)
         if (gifExit !== 0) {
           throw new Error(
@@ -339,7 +389,11 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
 
         if (abortRef.current) return
 
+        setExportPhase('Finalizing...')
         const outputData = await ffmpeg.readFile('output.gif')
+        if (!outputData || (outputData as Uint8Array).length === 0) {
+          throw new Error('Export produced an empty file. Check that your media files are valid.')
+        }
         const blob = new Blob([new Uint8Array(outputData as Uint8Array)], { type: 'image/gif' })
         triggerDownload(blob, filename)
       } else {
@@ -365,7 +419,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           // When a filter_complex is present, appending -vf would conflict.
           // Instead, fold the scale into the filter graph as an extra stage.
           if (ffmpegArgs.filterComplex) {
-            const mapLabel = ffmpegArgs.videoMap.replace(/^\[|\]$/g, '')
+            const mapLabel = stripBrackets(ffmpegArgs.videoMap)
             const scaledLabel = `${mapLabel}_scaled`
             const extendedFC = `${ffmpegArgs.filterComplex};[${mapLabel}]${scaleFilter}[${scaledLabel}]`
             a.push('-filter_complex', extendedFC)
@@ -398,13 +452,20 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
 
         // Try with audio first; if it fails because an input lacks audio
         // streams, retry video-only.
-        let videoExit = await ffmpeg.exec(buildVideoExportArgs(false))
+        setExportPhase('Encoding video...')
+        const firstArgs = buildVideoExportArgs(false)
+        capturedCommands.push({ label: 'Video encode', cmd: `ffmpeg ${firstArgs.join(' ')}` })
+        setFfmpegCommands([...capturedCommands])
+
+        let videoExit = await ffmpeg.exec(firstArgs)
         if (videoExit !== 0) {
           const lastLogs = ffmpegLogs.slice(-10).join('\n')
           if (lastLogs.includes('matches no streams') || lastLogs.includes('does not contain')) {
             // Input(s) have no audio stream — retry without audio mapping
-            ffmpegLogs.length = 0
-            videoExit = await ffmpeg.exec(buildVideoExportArgs(true))
+            const retryArgs = buildVideoExportArgs(true)
+            capturedCommands.push({ label: 'Video encode (retry, no audio)', cmd: `ffmpeg ${retryArgs.join(' ')}` })
+            setFfmpegCommands([...capturedCommands])
+            videoExit = await ffmpeg.exec(retryArgs)
           }
         }
 
@@ -417,7 +478,11 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
 
         if (abortRef.current) return
 
+        setExportPhase('Finalizing...')
         const outputData = await ffmpeg.readFile(outputFilename)
+        if (!outputData || (outputData as Uint8Array).length === 0) {
+          throw new Error('Export produced an empty file. Check that your media files are valid.')
+        }
         const mimeType = getFormatMimeType(format)
         const blob = new Blob([new Uint8Array(outputData as Uint8Array)], { type: mimeType })
         triggerDownload(blob, filename)
@@ -425,12 +490,18 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
 
       setExportStatus('done')
       setProgress(100)
+      setExportPhase('')
     } catch (err) {
       if (abortRef.current) return
       const msg = err instanceof Error ? err.message : String(err)
       setErrorMessage(msg)
       setExportStatus('error')
     } finally {
+      // Clear elapsed timer
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current)
+        elapsedTimerRef.current = null
+      }
       // Terminate FFmpeg worker + free ~32MB WASM memory after every export
       if (ffmpegRef.current) {
         try {
@@ -446,6 +517,11 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
   const handleCancel = useCallback(() => {
     if (isExporting) {
       abortRef.current = true
+      // Clear elapsed timer
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current)
+        elapsedTimerRef.current = null
+      }
       // Terminate the running FFmpeg process to free resources
       if (ffmpegRef.current) {
         try {
@@ -457,6 +533,8 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
       }
       setExportStatus('idle')
       setProgress(0)
+      setExportPhase('')
+      setFrameCount(null)
     } else {
       onClose()
     }
@@ -537,8 +615,9 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                       type="number"
                       min={160}
                       max={7680}
+                      step={2}
                       value={customWidth}
-                      onChange={(e) => setCustomWidth(Number(e.target.value))}
+                      onChange={(e) => setCustomWidth(Math.max(160, ensureEven(Number(e.target.value) || 1920)))}
                       style={inputStyle}
                       disabled={isExporting}
                     />
@@ -549,8 +628,9 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                       type="number"
                       min={90}
                       max={4320}
+                      step={2}
                       value={customHeight}
-                      onChange={(e) => setCustomHeight(Number(e.target.value))}
+                      onChange={(e) => setCustomHeight(Math.max(90, ensureEven(Number(e.target.value) || 1080)))}
                       style={inputStyle}
                       disabled={isExporting}
                     />
@@ -580,8 +660,9 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                 type="number"
                 min={120}
                 max={1920}
+                step={1}
                 value={gifWidth}
-                onChange={(e) => setGifWidth(Number(e.target.value))}
+                onChange={(e) => setGifWidth(Math.round(Number(e.target.value)))}
                 style={inputStyle}
                 disabled={isExporting}
               />
@@ -625,7 +706,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         {isExporting && (
           <div>
             <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
-              {exportStatus === 'loading' ? 'Loading FFmpeg...' : `Exporting... ${Math.round(progress)}%`}
+              {exportPhase}{exportStatus === 'exporting' ? ` ${Math.round(progress)}%` : ''} — {elapsedSec}s{frameCount !== null ? ` (${frameCount} frames)` : ''}
             </div>
             <div style={progressBarOuter}>
               <div
@@ -640,6 +721,67 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                 }}
               />
             </div>
+          </div>
+        )}
+
+        {/* FFmpeg command(s) */}
+        {ffmpegCommands.length > 0 && (
+          <div>
+            <button
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#888',
+                cursor: 'pointer',
+                fontSize: 11,
+                padding: 0,
+                textDecoration: 'underline',
+              }}
+              onClick={() => setShowCommands((v) => !v)}
+            >
+              {showCommands ? 'Hide' : 'Show'} FFmpeg Command{ffmpegCommands.length > 1 ? 's' : ''}
+            </button>
+            {showCommands && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 10, color: '#666', marginBottom: 4 }}>
+                  Note: filenames refer to the in-browser virtual filesystem.
+                </div>
+                {ffmpegCommands.map((c, i) => (
+                  <div key={i} style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                      <span style={{ fontSize: 11, color: '#aaa', fontWeight: 600 }}>{c.label}</span>
+                      <button
+                        style={{
+                          background: '#1a1a1a',
+                          border: '1px solid #3a3a3a',
+                          borderRadius: 3,
+                          color: '#888',
+                          cursor: 'pointer',
+                          fontSize: 10,
+                          padding: '2px 6px',
+                        }}
+                        onClick={() => navigator.clipboard.writeText(c.cmd)}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <pre style={{
+                      background: '#1a1a1a',
+                      border: '1px solid #2e2e2e',
+                      borderRadius: 4,
+                      padding: '6px 8px',
+                      fontSize: 10,
+                      color: '#ccc',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                      margin: 0,
+                      maxHeight: 120,
+                      overflow: 'auto',
+                    }}>{c.cmd}</pre>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -700,5 +842,5 @@ function triggerDownload(blob: Blob, filename: string): void {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }

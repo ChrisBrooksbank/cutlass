@@ -13,7 +13,8 @@ export function findActiveVideoClip(tracks: Track[], currentTime: number): Clip 
 }
 
 export function sourceTimeForClip(clip: Clip, currentTime: number): number {
-  return clip.sourceIn + (currentTime - clip.startTime) * clip.speed
+  const relativeTime = Math.max(0, currentTime - clip.startTime)
+  return Math.max(0, clip.sourceIn + relativeTime * clip.speed)
 }
 
 export function projectDuration(tracks: Track[]): number {

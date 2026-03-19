@@ -33,8 +33,13 @@ self.addEventListener('activate', (event) => {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function isWasmOrFFmpeg(url) {
-  const path = new URL(url).pathname;
-  return path.endsWith('.wasm') || path.includes('/ffmpeg-core-');
+  const parsed = new URL(url);
+  const path = parsed.pathname;
+  // Local WASM/FFmpeg assets
+  if (path.endsWith('.wasm') || path.includes('/ffmpeg-core-')) return true;
+  // CDN-hosted FFmpeg core assets (jsdelivr)
+  if (parsed.hostname === 'cdn.jsdelivr.net' && path.includes('@ffmpeg/core')) return true;
+  return false;
 }
 
 function isNavigationOrHTML(request) {
@@ -93,7 +98,9 @@ self.addEventListener('fetch', (event) => {
       fetch(request)
         .then((response) => {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch((err) => {
+            console.warn('SW: failed to cache HTML response:', err);
+          });
           return response;
         })
         .catch(() => caches.match(request))
@@ -112,7 +119,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       }).catch(() => cached);
 
-      return cached || fetchPromise;
+      return cached || fetchPromise.then((r) => r || new Response('Offline', { status: 503, statusText: 'Service Unavailable' }));
     })
   );
 });

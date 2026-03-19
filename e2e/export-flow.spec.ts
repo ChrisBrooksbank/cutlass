@@ -19,11 +19,6 @@ declare global {
   }
 }
 
-/** Helper to get the Zustand store from the page context. */
-function getStore(page: import('@playwright/test').Page) {
-  return page.evaluate(() => (window as any).__editorStore)
-}
-
 test.describe('Export flow', () => {
   test('import video, add to timeline, export MP4', async ({ page }) => {
     // Increase timeout for FFmpeg.wasm loading
@@ -197,10 +192,14 @@ test.describe('Export flow', () => {
     })
     console.log('Project state:', exportState)
 
-    // The test passes if the export flow reached any terminal state.
-    // A timeout while "Exporting..." is also acceptable — it means FFmpeg loaded
-    // and started encoding, but WASM encoding is too slow for the test timeout.
-    expect(['downloaded', 'completed', 'error', 'timeout']).toContain(outcome)
+    // The test passes if export completed or downloaded successfully.
+    // A timeout is acceptable in CI where WASM encoding may be too slow.
+    if (outcome === 'timeout') {
+      console.warn('Export timed out — WASM encoding too slow for test timeout, skipping')
+      test.skip()
+      return
+    }
+    expect(['downloaded', 'completed']).toContain(outcome)
   })
 
   test('orphaned clip warning appears when source asset is deleted', async ({ page }) => {
