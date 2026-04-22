@@ -8,9 +8,14 @@
  *
  * Assets are served locally from public/. Custom base URLs can be provided
  * via FFmpegLoadOptions for alternative deployments.
+ *
+ * toBlobURL is used so Vite's dev-server does not intercept the /public files
+ * as ES module imports (which it would refuse). Instead the files are fetched
+ * via HTTP and turned into blob: URLs that @ffmpeg/ffmpeg can import freely.
  */
 
 import { FFmpeg } from '@ffmpeg/ffmpeg'
+import { toBlobURL } from '@ffmpeg/util'
 import type { LogEvent, ProgressEvent } from '@ffmpeg/ffmpeg'
 
 /** Local base URL for the multi-threaded ffmpeg-core (requires SharedArrayBuffer). */
@@ -18,6 +23,13 @@ const MT_CORE_BASE = '/ffmpeg-core-mt'
 
 /** Local base URL for the single-threaded ffmpeg-core fallback. */
 const ST_CORE_BASE = '/ffmpeg-core-st'
+
+/** CDN base URLs (version-pinned) for opt-in CDN mode via VITE_FFMPEG_CDN env var. */
+const CDN_MT_CORE_BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.9/dist/esm'
+const CDN_ST_CORE_BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.9/dist/esm'
+
+/** Whether CDN mode is enabled via the VITE_FFMPEG_CDN environment variable. */
+const USE_CDN = import.meta.env.VITE_FFMPEG_CDN === 'true'
 
 // ---------------------------------------------------------------------------
 // Environment detection
@@ -57,14 +69,14 @@ export function buildFFmpegCoreURLs(
   stBase?: string,
 ): FFmpegCoreURLs {
   if (multiThread) {
-    const base = mtBase ?? MT_CORE_BASE
+    const base = mtBase ?? (USE_CDN ? CDN_MT_CORE_BASE : MT_CORE_BASE)
     return {
       coreURL: `${base}/ffmpeg-core.js`,
       wasmURL: `${base}/ffmpeg-core.wasm`,
       workerURL: `${base}/ffmpeg-core.worker.js`,
     }
   }
-  const base = stBase ?? ST_CORE_BASE
+  const base = stBase ?? (USE_CDN ? CDN_ST_CORE_BASE : ST_CORE_BASE)
   return {
     coreURL: `${base}/ffmpeg-core.js`,
     wasmURL: `${base}/ffmpeg-core.wasm`,
@@ -102,6 +114,10 @@ export interface FFmpegLoadOptions {
  *  - SharedArrayBuffer available → load multi-threaded core (faster)
  *  - SharedArrayBuffer unavailable → load single-threaded core (fallback)
  *
+ * toBlobURL converts each asset URL to a blob: URL by fetching it over HTTP.
+ * This prevents Vite's dev-server from trying to transform /public files as
+ * ES module imports (which it refuses for files in the public directory).
+ *
  * @returns A fully loaded FFmpeg instance ready for `exec()` calls.
  */
 export async function loadFFmpeg(options: FFmpegLoadOptions = {}): Promise<FFmpeg> {
@@ -114,18 +130,32 @@ export async function loadFFmpeg(options: FFmpegLoadOptions = {}): Promise<FFmpe
     ffmpeg.on('progress', options.onProgress)
   }
 
-  const useMultiThread = supportsSharedArrayBuffer()
+  // Always use single-threaded core. The MT core (ffmpeg-core-mt) uses Emscripten
+  // pthreads which require Atomics.wait() inside nested workers. This causes a
+  // deadlock in Chromium-based browsers where the Worker's Atomics.wait() can
+  // block indefinitely when another Worker thread tries to notify it, resulting
+  // in indefinite hangs with no progress. ST at ~2-5fps is acceptable and
+  // reliable; MT reliability in practice is worse due to this deadlock risk.
+  const useMultiThread = false
   const rawURLs = buildFFmpegCoreURLs(useMultiThread, options.mtCoreBase, options.stCoreBase)
-
-  const { coreURL, wasmURL, workerURL } = rawURLs
-  const loadConfig = useMultiThread && workerURL
-    ? { coreURL, wasmURL, workerURL }
-    : { coreURL, wasmURL }
 
   // Retry up to 2 times with exponential backoff for network resilience
   const MAX_RETRIES = 2
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      // Convert raw paths to blob: URLs so @ffmpeg/ffmpeg can import() them
+      // without Vite intercepting the /public files as module transforms.
+      const coreURL = await toBlobURL(rawURLs.coreURL, 'text/javascript')
+      const wasmURL = await toBlobURL(rawURLs.wasmURL, 'application/wasm')
+
+      const loadConfig = useMultiThread && rawURLs.workerURL
+        ? {
+            coreURL,
+            wasmURL,
+            workerURL: await toBlobURL(rawURLs.workerURL, 'text/javascript'),
+          }
+        : { coreURL, wasmURL }
+
       await ffmpeg.load(loadConfig)
       break
     } catch (err) {

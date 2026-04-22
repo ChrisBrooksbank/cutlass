@@ -49,6 +49,11 @@ export interface FFmpegArgs {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+/** Round a dimension to the nearest even number (required by libx264/libvpx-vp9). */
+export function ensureEven(n: number): number {
+  return Math.round(n / 2) * 2
+}
+
 /** Sanitize an arbitrary string for use as an FFmpeg stream label. */
 function sanitizeLabel(s: string): string {
   return s.replace(/[^a-zA-Z0-9_]/g, '_')
@@ -143,8 +148,8 @@ export function buildClipVideoFilter(
     if (f) filters.push(f)
   }
 
-  // 4. Scale to project canvas dimensions
-  filters.push(`scale=${project.width}:${project.height}`)
+  // 4. Scale to project canvas dimensions (ensure even for codec compatibility)
+  filters.push(`scale=${ensureEven(project.width)}:${ensureEven(project.height)}`)
 
   return `[${inputIdx}:v]${filters.join(',')}[${outputLabel}]`
 }
@@ -269,8 +274,14 @@ function groupClipsIntoChains(clips: Clip[]): Clip[][] {
  *
  * Returns inputs (in order) and a filter_complex string along with the
  * stream labels to use for the final video and audio outputs.
+ *
+ * When `outputSize` is provided, clips and the canvas are scaled directly to
+ * that resolution, avoiding a wasteful intermediate upscale to project dims.
  */
-export function buildFFmpegArgs(project: ProjectState, options?: { skipAudio?: boolean }): FFmpegArgs {
+export function buildFFmpegArgs(
+  project: ProjectState,
+  options?: { skipAudio?: boolean; outputSize?: { width: number; height: number } },
+): FFmpegArgs {
   const assetMap = new Map(project.mediaAssets.map((a) => [a.id, a]))
 
   // --- Assign a stable FFmpeg input index to every clip ---
@@ -313,6 +324,7 @@ export function buildFFmpegArgs(project: ProjectState, options?: { skipAudio?: b
 
       // 1. Process each clip in the chain individually
       const clipLabels: string[] = []
+      const renderSize = options?.outputSize ?? { width: project.width, height: project.height }
       for (const clip of chain) {
         const inputIdx = clipInputIdx.get(clip.id)
         if (inputIdx === undefined) continue
@@ -322,8 +334,8 @@ export function buildFFmpegArgs(project: ProjectState, options?: { skipAudio?: b
         const label = `vp_${sanitizeLabel(clip.id)}`
         fragments.push(
           buildClipVideoFilter(clip, inputIdx, label, {
-            width: project.width,
-            height: project.height,
+            width: renderSize.width,
+            height: renderSize.height,
             fps: project.fps,
           }),
         )
@@ -386,9 +398,10 @@ export function buildFFmpegArgs(project: ProjectState, options?: { skipAudio?: b
     }
     const baseDuration = Math.max(1, Math.ceil(totalDuration))
 
+    const renderSize2 = options?.outputSize ?? { width: project.width, height: project.height }
     const baseLabel = 'vbase'
     fragments.push(
-      `color=black:size=${project.width}x${project.height}:rate=${project.fps}:d=${baseDuration}[${baseLabel}]`,
+      `color=black:size=${renderSize2.width}x${renderSize2.height}:rate=${project.fps}:d=${baseDuration}[${baseLabel}]`,
     )
     let current = baseLabel
     for (let i = 0; i < positionedVideoLabels.length; i++) {

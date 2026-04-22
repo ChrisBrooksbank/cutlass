@@ -34,7 +34,7 @@ describe('buildGifPalettegenFilter', () => {
   })
 
   it('contains scale segment with configured width', () => {
-    expect(buildGifPalettegenFilter(settings480)).toContain('scale=480:-1')
+    expect(buildGifPalettegenFilter(settings480)).toContain('scale=480:-2')
   })
 
   it('uses lanczos resampling', () => {
@@ -50,7 +50,7 @@ describe('buildGifPalettegenFilter', () => {
   })
 
   it('reflects different width value', () => {
-    expect(buildGifPalettegenFilter(settings720)).toContain('scale=720:-1')
+    expect(buildGifPalettegenFilter(settings720)).toContain('scale=720:-2')
   })
 })
 
@@ -83,7 +83,7 @@ describe('buildGifPaletteUseFilter', () => {
   })
 
   it('contains scale segment with width', () => {
-    expect(buildGifPaletteUseFilter(settings480)).toContain('scale=480:-1')
+    expect(buildGifPaletteUseFilter(settings480)).toContain('scale=480:-2')
   })
 
   it('references paletteuse', () => {
@@ -97,7 +97,7 @@ describe('buildGifPaletteUseFilter', () => {
   it('reflects different fps and width', () => {
     const filter = buildGifPaletteUseFilter(settings720)
     expect(filter).toContain('fps=15')
-    expect(filter).toContain('scale=720:-1')
+    expect(filter).toContain('scale=720:-2')
   })
 })
 

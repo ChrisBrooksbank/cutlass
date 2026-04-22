@@ -20,7 +20,6 @@ import {
   GIF_DEFAULT_WIDTH,
   buildGifPalettegenArgs,
   buildGifPaletteUseArgs,
-  stripBrackets,
 } from '@/components/gifExportUtils'
 import type { GifExportSettings, GifFilterGraphContext } from '@/components/gifExportUtils'
 import { loadFFmpeg } from '@/components/ffmpegLoader'
@@ -400,8 +399,16 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         // Video export (MP4/WebM)
         const outputFilename = `output.${format}`
 
+        // Target resolution for this export
+        const targetRes =
+          preset === 'custom'
+            ? { width: ensureEven(customWidth), height: ensureEven(customHeight) }
+            : RESOLUTION_PRESET_VALUES[preset]
+
         const buildVideoExportArgs = (skipAudio: boolean): string[] => {
-          const ffmpegArgs = buildFFmpegArgs(project, { skipAudio })
+          // Pass outputSize so buildFFmpegArgs scales clips directly to the export
+          // resolution instead of intermediate project dimensions (e.g. 1920×1080).
+          const ffmpegArgs = buildFFmpegArgs(project, { skipAudio, outputSize: targetRes })
           const a: string[] = []
 
           // Input files
@@ -409,26 +416,17 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
             a.push('-i', `input${i}${getExtFromUrl(inputs[i].url)}`)
           }
 
-          // Scale to target resolution
-          const targetRes =
-            preset === 'custom'
-              ? { width: customWidth, height: customHeight }
-              : RESOLUTION_PRESET_VALUES[preset]
-          const scaleFilter = `scale=${targetRes.width}:${targetRes.height}`
-
-          // When a filter_complex is present, appending -vf would conflict.
-          // Instead, fold the scale into the filter graph as an extra stage.
+          // The filter_complex already scales clips to targetRes.
+          // Just wire up the map labels without an extra scale stage.
           if (ffmpegArgs.filterComplex) {
-            const mapLabel = stripBrackets(ffmpegArgs.videoMap)
-            const scaledLabel = `${mapLabel}_scaled`
-            const extendedFC = `${ffmpegArgs.filterComplex};[${mapLabel}]${scaleFilter}[${scaledLabel}]`
-            a.push('-filter_complex', extendedFC)
-            a.push('-map', `[${scaledLabel}]`)
+            a.push('-filter_complex', ffmpegArgs.filterComplex)
+            a.push('-map', ffmpegArgs.videoMap)
           } else {
             if (ffmpegArgs.videoMap) {
               a.push('-map', ffmpegArgs.videoMap)
             }
-            a.push('-vf', scaleFilter)
+            // No filter_complex — apply scale via -vf
+            a.push('-vf', `scale=${targetRes.width}:${targetRes.height}`)
           }
 
           // Map audio output
@@ -439,7 +437,19 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           // Codec args with quality preset CRF
           const qp = QUALITY_PRESETS[quality]
           const codecArgs = getFormatCodecArgs(format, qp.crfH264, qp.crfVP9)
-          a.push(...codecArgs)
+          if (ffmpegArgs.audioMap) {
+            a.push(...codecArgs)
+          } else {
+            // No audio mapped — strip audio codec args (-c:a, -b:a, -c:a value, -b:a value)
+            const AUDIO_ARG_KEYS = new Set(['-c:a', '-b:a'])
+            for (let ai = 0; ai < codecArgs.length; ai++) {
+              if (AUDIO_ARG_KEYS.has(codecArgs[ai])) {
+                ai++ // skip value too
+              } else {
+                a.push(codecArgs[ai])
+              }
+            }
+          }
 
           // Duration limit
           if (durationSec > 0) {

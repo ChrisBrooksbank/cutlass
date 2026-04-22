@@ -70,7 +70,7 @@ export function getFormatCodecArgs(
   crfVP9 = 33,
 ): string[] {
   if (format === 'mp4') {
-    return ['-c:v', 'libx264', '-preset', 'fast', '-crf', String(crfH264), '-c:a', 'aac', '-b:a', '128k']
+    return ['-c:v', 'libx264', '-preset', 'fast', '-crf', String(crfH264), '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k']
   }
   // webm / VP9
   return ['-c:v', 'libvpx-vp9', '-crf', String(crfVP9), '-b:v', '0', '-c:a', 'libopus', '-b:a', '128k']
