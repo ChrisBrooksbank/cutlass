@@ -61,19 +61,45 @@ export function getFormatMimeType(format: ExportFormat): string {
 /**
  * Return FFmpeg codec flags for the given format.
  *
- * MP4:  libx264 with fast preset and AAC audio
- * WebM: libvpx-vp9 with Opus audio
+ * MP4:  libx264 with a browser-friendly preset and AAC audio
+ * WebM: libvpx-vp9 with realtime-oriented settings and Opus audio
  */
-export function getFormatCodecArgs(
-  format: ExportFormat,
-  crfH264 = 23,
-  crfVP9 = 33,
-): string[] {
+export function getFormatCodecArgs(format: ExportFormat, crfH264 = 23, crfVP9 = 33): string[] {
   if (format === 'mp4') {
-    return ['-c:v', 'libx264', '-preset', 'fast', '-crf', String(crfH264), '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k']
+    return [
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      String(crfH264),
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+    ]
   }
   // webm / VP9
-  return ['-c:v', 'libvpx-vp9', '-crf', String(crfVP9), '-b:v', '0', '-c:a', 'libopus', '-b:a', '128k']
+  return [
+    '-c:v',
+    'libvpx-vp9',
+    '-deadline',
+    'realtime',
+    '-cpu-used',
+    '8',
+    '-row-mt',
+    '1',
+    '-crf',
+    String(crfVP9),
+    '-b:v',
+    '0',
+    '-c:a',
+    'libopus',
+    '-b:a',
+    '128k',
+  ]
 }
 
 /**

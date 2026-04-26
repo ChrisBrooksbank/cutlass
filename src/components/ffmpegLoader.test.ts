@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { supportsSharedArrayBuffer, buildFFmpegCoreURLs } from './ffmpegLoader'
+import {
+  supportsSharedArrayBuffer,
+  supportsMultiThreadFFmpeg,
+  buildFFmpegCoreURLs,
+} from './ffmpegLoader'
 
 // ---------------------------------------------------------------------------
 // supportsSharedArrayBuffer
@@ -18,6 +22,28 @@ describe('supportsSharedArrayBuffer', () => {
   it('returns false when SharedArrayBuffer is undefined', () => {
     vi.stubGlobal('SharedArrayBuffer', undefined)
     expect(supportsSharedArrayBuffer()).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// supportsMultiThreadFFmpeg
+// ---------------------------------------------------------------------------
+
+describe('supportsMultiThreadFFmpeg', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('returns true when SharedArrayBuffer exists and isolation is not explicitly false', () => {
+    vi.stubGlobal('SharedArrayBuffer', class {})
+    vi.stubGlobal('crossOriginIsolated', true)
+    expect(supportsMultiThreadFFmpeg()).toBe(true)
+  })
+
+  it('returns false when crossOriginIsolated is false', () => {
+    vi.stubGlobal('SharedArrayBuffer', class {})
+    vi.stubGlobal('crossOriginIsolated', false)
+    expect(supportsMultiThreadFFmpeg()).toBe(false)
   })
 })
 

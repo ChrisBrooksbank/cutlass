@@ -31,6 +31,9 @@ const CDN_ST_CORE_BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.9/dist/
 /** Whether CDN mode is enabled via the VITE_FFMPEG_CDN environment variable. */
 const USE_CDN = import.meta.env.VITE_FFMPEG_CDN === 'true'
 
+/** Escape hatch for browsers/environments where the pthread core is unstable. */
+const DISABLE_MT = import.meta.env.VITE_FFMPEG_DISABLE_MT === 'true'
+
 // ---------------------------------------------------------------------------
 // Environment detection
 // ---------------------------------------------------------------------------
@@ -43,6 +46,17 @@ const USE_CDN = import.meta.env.VITE_FFMPEG_CDN === 'true'
  */
 export function supportsSharedArrayBuffer(): boolean {
   return typeof SharedArrayBuffer !== 'undefined'
+}
+
+/**
+ * Returns true when the multi-threaded FFmpeg core can be used.
+ *
+ * FFmpeg's pthread build requires SharedArrayBuffer and a cross-origin isolated
+ * page. In older browsers the global may be absent, so we only reject an
+ * explicit `false`.
+ */
+export function supportsMultiThreadFFmpeg(): boolean {
+  return !DISABLE_MT && supportsSharedArrayBuffer() && globalThis.crossOriginIsolated !== false
 }
 
 // ---------------------------------------------------------------------------
@@ -121,56 +135,66 @@ export interface FFmpegLoadOptions {
  * @returns A fully loaded FFmpeg instance ready for `exec()` calls.
  */
 export async function loadFFmpeg(options: FFmpegLoadOptions = {}): Promise<FFmpeg> {
-  const ffmpeg = new FFmpeg()
+  const candidates = supportsMultiThreadFFmpeg() ? [true, false] : [false]
 
-  if (options.onLog) {
-    ffmpeg.on('log', options.onLog)
-  }
-  if (options.onProgress) {
-    ffmpeg.on('progress', options.onProgress)
-  }
-
-  // Always use single-threaded core. The MT core (ffmpeg-core-mt) uses Emscripten
-  // pthreads which require Atomics.wait() inside nested workers. This causes a
-  // deadlock in Chromium-based browsers where the Worker's Atomics.wait() can
-  // block indefinitely when another Worker thread tries to notify it, resulting
-  // in indefinite hangs with no progress. ST at ~2-5fps is acceptable and
-  // reliable; MT reliability in practice is worse due to this deadlock risk.
-  const useMultiThread = false
-  const rawURLs = buildFFmpegCoreURLs(useMultiThread, options.mtCoreBase, options.stCoreBase)
-
-  // Retry up to 2 times with exponential backoff for network resilience
+  // Retry up to 2 times with exponential backoff for network resilience.
   const MAX_RETRIES = 2
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      // Convert raw paths to blob: URLs so @ffmpeg/ffmpeg can import() them
-      // without Vite intercepting the /public files as module transforms.
-      const coreURL = await toBlobURL(rawURLs.coreURL, 'text/javascript')
-      const wasmURL = await toBlobURL(rawURLs.wasmURL, 'application/wasm')
 
-      const loadConfig = useMultiThread && rawURLs.workerURL
-        ? {
-            coreURL,
-            wasmURL,
-            workerURL: await toBlobURL(rawURLs.workerURL, 'text/javascript'),
-          }
-        : { coreURL, wasmURL }
+  for (const useMultiThread of candidates) {
+    const rawURLs = buildFFmpegCoreURLs(useMultiThread, options.mtCoreBase, options.stCoreBase)
 
-      await ffmpeg.load(loadConfig)
-      break
-    } catch (err) {
-      if (attempt < MAX_RETRIES) {
-        const delay = 1000 * 2 ** attempt // 1s, 2s
-        await new Promise((r) => setTimeout(r, delay))
-        continue
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const ffmpeg = new FFmpeg()
+
+      if (options.onLog) {
+        ffmpeg.on('log', options.onLog)
       }
-      const message = err instanceof Error ? err.message : String(err)
-      throw new Error(
-        `Failed to load FFmpeg: ${message}. ` +
-        'This may be caused by missing assets, network issues, or an unsupported browser.',
-      )
+      if (options.onProgress) {
+        ffmpeg.on('progress', options.onProgress)
+      }
+
+      try {
+        // Convert raw paths to blob: URLs so @ffmpeg/ffmpeg can import() them
+        // without Vite intercepting the /public files as module transforms.
+        const coreURL = await toBlobURL(rawURLs.coreURL, 'text/javascript')
+        const wasmURL = await toBlobURL(rawURLs.wasmURL, 'application/wasm')
+
+        const loadConfig =
+          useMultiThread && rawURLs.workerURL
+            ? {
+                coreURL,
+                wasmURL,
+                workerURL: await toBlobURL(rawURLs.workerURL, 'text/javascript'),
+              }
+            : { coreURL, wasmURL }
+
+        await ffmpeg.load(loadConfig)
+        return ffmpeg
+      } catch (err) {
+        try {
+          ffmpeg.terminate()
+        } catch {
+          // Nothing to terminate if the worker never finished starting.
+        }
+
+        if (attempt < MAX_RETRIES) {
+          const delay = 1000 * 2 ** attempt // 1s, 2s
+          await new Promise((r) => setTimeout(r, delay))
+          continue
+        }
+
+        if (useMultiThread && candidates.length > 1) {
+          break
+        }
+
+        const message = err instanceof Error ? err.message : String(err)
+        throw new Error(
+          `Failed to load FFmpeg: ${message}. ` +
+            'This may be caused by missing assets, network issues, or an unsupported browser.',
+        )
+      }
     }
   }
 
-  return ffmpeg
+  throw new Error('Failed to load FFmpeg.')
 }

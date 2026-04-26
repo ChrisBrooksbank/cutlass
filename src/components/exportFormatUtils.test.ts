@@ -64,6 +64,11 @@ describe('getFormatCodecArgs', () => {
     expect(args).toContain('libx264')
   })
 
+  it('uses a browser-friendly H.264 preset for mp4', () => {
+    const args = getFormatCodecArgs('mp4')
+    expect(args).toContain('veryfast')
+  })
+
   it('includes aac audio codec for mp4', () => {
     const args = getFormatCodecArgs('mp4')
     expect(args).toContain('aac')
@@ -72,6 +77,14 @@ describe('getFormatCodecArgs', () => {
   it('uses libvpx-vp9 for webm', () => {
     const args = getFormatCodecArgs('webm')
     expect(args).toContain('libvpx-vp9')
+  })
+
+  it('uses realtime VP9 settings for webm', () => {
+    const args = getFormatCodecArgs('webm')
+    expect(args).toContain('-deadline')
+    expect(args).toContain('realtime')
+    expect(args).toContain('-cpu-used')
+    expect(args).toContain('8')
   })
 
   it('includes libopus audio codec for webm', () => {
