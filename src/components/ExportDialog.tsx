@@ -23,7 +23,12 @@ import {
 } from '@/components/gifExportUtils'
 import type { GifExportSettings, GifFilterGraphContext } from '@/components/gifExportUtils'
 import { loadFFmpeg } from '@/components/ffmpegLoader'
-import { buildFFmpegArgs, collectInputs, findOrphanedClips, ensureEven } from '@/components/filterGraphUtils'
+import {
+  buildFFmpegArgs,
+  collectInputs,
+  findOrphanedClips,
+  ensureEven,
+} from '@/components/filterGraphUtils'
 import { progressRatioToPercent } from '@/components/exportProgressUtils'
 import { getEffectHandler } from '@/components/effectRegistry'
 import { useEditorStore } from '@/store'
@@ -48,13 +53,24 @@ type ExportStatus = 'idle' | 'loading' | 'exporting' | 'done' | 'error'
 
 const CANVAS_ONLY_EFFECTS = new Set(['cursor', 'shape-circle', 'shape-arrow', 'blur'])
 
-function detectCanvasOnlyEffects(project: { tracks: { clips: { effects: { type: string }[] }[] }[] }): string[] {
+function detectCanvasOnlyEffects(project: {
+  tracks: { clips: { effects: { type: string }[] }[] }[]
+}): string[] {
   const found = new Set<string>()
   for (const track of project.tracks) {
     for (const clip of track.clips) {
       for (const effect of clip.effects) {
         const handler = getEffectHandler(effect.type)
-        if (CANVAS_ONLY_EFFECTS.has(effect.type) || (handler && handler.toFFmpegFilter(effect as never, { clipIndex: 0, width: 0, height: 0, fps: 0 }) === null)) {
+        if (
+          CANVAS_ONLY_EFFECTS.has(effect.type) ||
+          (handler &&
+            handler.toFFmpegFilter(effect as never, {
+              clipIndex: 0,
+              width: 0,
+              height: 0,
+              fps: 0,
+            }) === null)
+        ) {
           found.add(handler?.displayName ?? effect.type)
         }
       }
@@ -127,7 +143,7 @@ const chipBase: React.CSSProperties = {
 
 const chipActiveStyle: React.CSSProperties = {
   ...chipBase,
-  borderColor: '#60a5fa',
+  border: '1px solid #60a5fa',
   background: '#1d3557',
   color: '#60a5fa',
   fontWeight: 600,
@@ -229,7 +245,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
   const [exportPhase, setExportPhase] = useState('')
   const [elapsedSec, setElapsedSec] = useState(0)
   const [frameCount, setFrameCount] = useState<number | null>(null)
-  const [ffmpegCommands, setFfmpegCommands] = useState<{label: string, cmd: string}[]>([])
+  const [ffmpegCommands, setFfmpegCommands] = useState<{ label: string; cmd: string }[]>([])
   const [showCommands, setShowCommands] = useState(false)
   const abortRef = useRef(false)
   const ffmpegRef = useRef<Awaited<ReturnType<typeof loadFFmpeg>> | null>(null)
@@ -317,7 +333,9 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
       const inputs = collectInputs(project)
 
       if (inputs.length === 0) {
-        throw new Error('No valid media clips to export. Add media to your project before exporting.')
+        throw new Error(
+          'No valid media clips to export. Add media to your project before exporting.',
+        )
       }
 
       for (let i = 0; i < inputs.length; i++) {
@@ -328,7 +346,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
 
       if (abortRef.current) return
 
-      const capturedCommands: {label: string, cmd: string}[] = []
+      const capturedCommands: { label: string; cmd: string }[] = []
 
       if (exportType === 'gif') {
         // GIF two-pass pipeline
@@ -341,10 +359,9 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         // Build project filter graph so GIF output matches the preview
         // (includes trim, speed, effects, transitions, multi-clip composition)
         const ffmpegArgs = buildFFmpegArgs(project, { skipAudio: true })
-        const filterGraph: GifFilterGraphContext | undefined =
-          ffmpegArgs.filterComplex
-            ? { filterComplex: ffmpegArgs.filterComplex, videoMapLabel: ffmpegArgs.videoMap }
-            : undefined
+        const filterGraph: GifFilterGraphContext | undefined = ffmpegArgs.filterComplex
+          ? { filterComplex: ffmpegArgs.filterComplex, videoMapLabel: ffmpegArgs.videoMap }
+          : undefined
 
         // Pass 1: palettegen
         setExportPhase('Pass 1/2: Generating palette...')
@@ -353,14 +370,17 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           ...buildGifPalettegenArgs(gifSettings, inputs.length, filterGraph),
           'palette.png',
         ]
-        capturedCommands.push({ label: 'Pass 1: palettegen', cmd: `ffmpeg ${paletteArgs.join(' ')}` })
+        capturedCommands.push({
+          label: 'Pass 1: palettegen',
+          cmd: `ffmpeg ${paletteArgs.join(' ')}`,
+        })
         setFfmpegCommands([...capturedCommands])
 
         const paletteExit = await ffmpeg.exec(paletteArgs)
         if (paletteExit !== 0) {
           throw new Error(
             'FFmpeg palettegen failed' +
-            (ffmpegLogs.length ? ': ' + ffmpegLogs.slice(-5).join(' | ') : ''),
+              (ffmpegLogs.length ? ': ' + ffmpegLogs.slice(-5).join(' | ') : ''),
           )
         }
 
@@ -371,7 +391,8 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         const paletteInputIndex = inputs.length
         const gifArgs = [
           ...inputs.flatMap((_, i) => ['-i', `input${i}${getExtFromUrl(inputs[i].url)}`]),
-          '-i', 'palette.png',
+          '-i',
+          'palette.png',
           ...buildGifPaletteUseArgs(gifSettings, paletteInputIndex, filterGraph),
           'output.gif',
         ]
@@ -382,7 +403,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         if (gifExit !== 0) {
           throw new Error(
             'FFmpeg GIF export failed' +
-            (ffmpegLogs.length ? ': ' + ffmpegLogs.slice(-5).join(' | ') : ''),
+              (ffmpegLogs.length ? ': ' + ffmpegLogs.slice(-5).join(' | ') : ''),
           )
         }
 
@@ -473,7 +494,10 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           if (lastLogs.includes('matches no streams') || lastLogs.includes('does not contain')) {
             // Input(s) have no audio stream — retry without audio mapping
             const retryArgs = buildVideoExportArgs(true)
-            capturedCommands.push({ label: 'Video encode (retry, no audio)', cmd: `ffmpeg ${retryArgs.join(' ')}` })
+            capturedCommands.push({
+              label: 'Video encode (retry, no audio)',
+              cmd: `ffmpeg ${retryArgs.join(' ')}`,
+            })
             setFfmpegCommands([...capturedCommands])
             videoExit = await ffmpeg.exec(retryArgs)
           }
@@ -482,7 +506,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         if (videoExit !== 0) {
           throw new Error(
             'FFmpeg export failed' +
-            (ffmpegLogs.length ? ': ' + ffmpegLogs.slice(-5).join(' | ') : ''),
+              (ffmpegLogs.length ? ': ' + ffmpegLogs.slice(-5).join(' | ') : ''),
           )
         }
 
@@ -522,7 +546,19 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         ffmpegRef.current = null
       }
     }
-  }, [exportType, format, filename, project, durationSec, gifFps, gifWidth, quality, preset, customWidth, customHeight])
+  }, [
+    exportType,
+    format,
+    filename,
+    project,
+    durationSec,
+    gifFps,
+    gifWidth,
+    quality,
+    preset,
+    customWidth,
+    customHeight,
+  ])
 
   const handleCancel = useCallback(() => {
     if (isExporting) {
@@ -627,7 +663,9 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                       max={7680}
                       step={2}
                       value={customWidth}
-                      onChange={(e) => setCustomWidth(Math.max(160, ensureEven(Number(e.target.value) || 1920)))}
+                      onChange={(e) =>
+                        setCustomWidth(Math.max(160, ensureEven(Number(e.target.value) || 1920)))
+                      }
                       style={inputStyle}
                       disabled={isExporting}
                     />
@@ -640,7 +678,9 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                       max={4320}
                       step={2}
                       value={customHeight}
-                      onChange={(e) => setCustomHeight(Math.max(90, ensureEven(Number(e.target.value) || 1080)))}
+                      onChange={(e) =>
+                        setCustomHeight(Math.max(90, ensureEven(Number(e.target.value) || 1080)))
+                      }
                       style={inputStyle}
                       disabled={isExporting}
                     />
@@ -691,8 +731,8 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         {/* Orphaned clips warning */}
         {orphanedClips.length > 0 && (
           <div style={warningBoxStyle}>
-            {orphanedClips.length} clip{orphanedClips.length > 1 ? 's' : ''} reference deleted
-            media and will be skipped in the export.
+            {orphanedClips.length} clip{orphanedClips.length > 1 ? 's' : ''} reference deleted media
+            and will be skipped in the export.
           </div>
         )}
 
@@ -716,7 +756,9 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         {isExporting && (
           <div>
             <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
-              {exportPhase}{exportStatus === 'exporting' ? ` ${Math.round(progress)}%` : ''} — {elapsedSec}s{frameCount !== null ? ` (${frameCount} frames)` : ''}
+              {exportPhase}
+              {exportStatus === 'exporting' ? ` ${Math.round(progress)}%` : ''} — {elapsedSec}s
+              {frameCount !== null ? ` (${frameCount} frames)` : ''}
             </div>
             <div style={progressBarOuter}>
               <div
@@ -758,8 +800,17 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                 </div>
                 {ffmpegCommands.map((c, i) => (
                   <div key={i} style={{ marginBottom: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                      <span style={{ fontSize: 11, color: '#aaa', fontWeight: 600 }}>{c.label}</span>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 2,
+                      }}
+                    >
+                      <span style={{ fontSize: 11, color: '#aaa', fontWeight: 600 }}>
+                        {c.label}
+                      </span>
                       <button
                         style={{
                           background: '#1a1a1a',
@@ -775,19 +826,23 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
                         Copy
                       </button>
                     </div>
-                    <pre style={{
-                      background: '#1a1a1a',
-                      border: '1px solid #2e2e2e',
-                      borderRadius: 4,
-                      padding: '6px 8px',
-                      fontSize: 10,
-                      color: '#ccc',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-all',
-                      margin: 0,
-                      maxHeight: 120,
-                      overflow: 'auto',
-                    }}>{c.cmd}</pre>
+                    <pre
+                      style={{
+                        background: '#1a1a1a',
+                        border: '1px solid #2e2e2e',
+                        borderRadius: 4,
+                        padding: '6px 8px',
+                        fontSize: 10,
+                        color: '#ccc',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-all',
+                        margin: 0,
+                        maxHeight: 120,
+                        overflow: 'auto',
+                      }}
+                    >
+                      {c.cmd}
+                    </pre>
                   </div>
                 ))}
               </div>

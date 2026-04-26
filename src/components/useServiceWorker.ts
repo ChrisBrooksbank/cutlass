@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 
 interface SWState {
   /** A new version is waiting to activate */
@@ -9,6 +9,7 @@ interface SWState {
 
 export function useServiceWorker(): SWState {
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null)
+  const reloadOnControllerChangeRef = useRef(false)
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
@@ -40,6 +41,7 @@ export function useServiceWorker(): SWState {
     // When the new SW activates (after skipWaiting), reload the page
     let refreshing = false
     const onControllerChange = () => {
+      if (!reloadOnControllerChangeRef.current) return
       if (refreshing) return
       refreshing = true
       window.location.reload()
@@ -47,9 +49,12 @@ export function useServiceWorker(): SWState {
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
 
     // Check for updates every 60 minutes
-    const interval = setInterval(() => {
-      registration?.update()
-    }, 60 * 60 * 1000)
+    const interval = setInterval(
+      () => {
+        registration?.update()
+      },
+      60 * 60 * 1000,
+    )
 
     return () => {
       clearInterval(interval)
@@ -58,6 +63,7 @@ export function useServiceWorker(): SWState {
   }, [])
 
   const applyUpdate = useCallback(() => {
+    reloadOnControllerChangeRef.current = true
     waitingWorker?.postMessage({ type: 'SKIP_WAITING' })
   }, [waitingWorker])
 

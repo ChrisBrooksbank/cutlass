@@ -227,9 +227,7 @@ export function collectInputs(project: ProjectState): ClipInput[] {
  * Find clips whose sourceId references an asset that no longer exists.
  * Returns an array of { trackIndex, clipId } for each orphaned clip.
  */
-export function findOrphanedClips(
-  project: ProjectState,
-): { trackIndex: number; clipId: string }[] {
+export function findOrphanedClips(project: ProjectState): { trackIndex: number; clipId: string }[] {
   const assetIds = new Set(project.mediaAssets.map((a) => a.id))
   const orphaned: { trackIndex: number; clipId: string }[] = []
   for (let ti = 0; ti < project.tracks.length; ti++) {
@@ -433,7 +431,7 @@ export function buildFFmpegArgs(
 
   for (const track of project.tracks) {
     if (track.muted) continue
-    if (track.type === 'annotation') continue
+    if (track.type !== 'audio') continue
 
     const sorted = [...track.clips].sort((a, b) => a.startTime - b.startTime)
 
@@ -441,7 +439,7 @@ export function buildFFmpegArgs(
       const inputIdx = clipInputIdx.get(clip.id)
       if (inputIdx === undefined) continue
       const asset = assetMap.get(clip.sourceId)
-      if (!asset || asset.type === 'image') continue
+      if (!asset || asset.type !== 'audio') continue
 
       const baseLabel = `ap_${sanitizeLabel(clip.id)}`
 

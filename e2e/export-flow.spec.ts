@@ -23,6 +23,21 @@ test.describe('Export flow', () => {
   test('import video, add to timeline, export MP4', async ({ page }) => {
     // Increase timeout for FFmpeg.wasm loading
     test.setTimeout(180_000)
+    const browserLogs: string[] = []
+
+    page.on('console', (msg) => {
+      const text = `[browser ${msg.type()}] ${msg.text()}`
+      if (msg.type() === 'error' || /ffmpeg|export|wasm/i.test(msg.text())) {
+        browserLogs.push(text)
+        console.log(text)
+      }
+    })
+
+    page.on('pageerror', (error) => {
+      const text = `[pageerror] ${error.message}`
+      browserLogs.push(text)
+      console.log(text)
+    })
 
     await page.goto('/')
     await expect(page.locator('.preview-panel')).toBeVisible({ timeout: 30_000 })
@@ -140,13 +155,6 @@ test.describe('Export flow', () => {
     // Click the Download button
     await page.getByRole('button', { name: /Download/ }).click()
 
-    // Log browser console messages for debugging
-    page.on('console', (msg) => {
-      if (msg.type() === 'error' || msg.text().includes('ffmpeg') || msg.text().includes('FFmpeg')) {
-        console.log(`[browser ${msg.type()}] ${msg.text()}`)
-      }
-    })
-
     // Wait for the export to progress — FFmpeg loading or exporting
     await expect(page.getByText('Loading FFmpeg...').first()).toBeVisible({ timeout: 30_000 })
 
@@ -162,8 +170,14 @@ test.describe('Export flow', () => {
         }
         return 'downloaded' as const
       }),
-      page.getByText('Export complete!').waitFor({ timeout: 120_000 }).then(() => 'completed' as const),
-      page.waitForSelector('[style*="color: #ff6060"], [style*="color: rgb(255, 96, 96)"]', { timeout: 120_000 })
+      page
+        .getByText('Export complete!')
+        .waitFor({ timeout: 120_000 })
+        .then(() => 'completed' as const),
+      page
+        .waitForSelector('[style*="color: #ff6060"], [style*="color: rgb(255, 96, 96)"]', {
+          timeout: 120_000,
+        })
         .then(async (el) => {
           const text = await el.textContent()
           console.log(`Export error: ${text}`)
@@ -176,6 +190,7 @@ test.describe('Export flow', () => {
         return dialog?.textContent ?? 'no dialog found'
       })
       console.log(`Timeout — dialog text: ${dialogText}`)
+      console.log(`Browser logs:\n${browserLogs.join('\n')}`)
       return 'timeout' as const
     })
 
@@ -192,13 +207,6 @@ test.describe('Export flow', () => {
     })
     console.log('Project state:', exportState)
 
-    // The test passes if export completed or downloaded successfully.
-    // A timeout is acceptable in CI where WASM encoding may be too slow.
-    if (outcome === 'timeout') {
-      console.warn('Export timed out — WASM encoding too slow for test timeout, skipping')
-      test.skip()
-      return
-    }
     expect(['downloaded', 'completed']).toContain(outcome)
   })
 
@@ -261,8 +269,8 @@ test.describe('Export flow', () => {
     await page.getByTestId('export-btn').click()
 
     // Verify orphaned clip warning is shown
-    await expect(
-      page.getByText(/clip.*reference.*deleted.*media.*skipped/i),
-    ).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText(/clip.*reference.*deleted.*media.*skipped/i)).toBeVisible({
+      timeout: 5_000,
+    })
   })
 })

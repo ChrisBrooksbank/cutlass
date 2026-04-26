@@ -465,6 +465,26 @@ describe('buildFFmpegArgs', () => {
     expect(args.filterComplex).toContain('atrim=')
   })
 
+  it('video clips do not create audio filters because their audio stream may be absent', () => {
+    const asset = makeVideoAsset()
+    const clip = makeClip()
+    const track: Track = {
+      id: 't1',
+      type: 'video',
+      name: 'V1',
+      muted: false,
+      locked: false,
+      volume: 1,
+      noiseReduction: false,
+      clips: [clip],
+    }
+    const project = makeProject({ tracks: [track], mediaAssets: [asset] })
+    const args = buildFFmpegArgs(project)
+    expect(args.audioMap).toBeNull()
+    expect(args.filterComplex).not.toContain('[0:a]')
+    expect(args.filterComplex).not.toContain('atrim=')
+  })
+
   it('two audio clips produce amix in filterComplex', () => {
     const a1: MediaAsset = { id: 'a1', name: 'a.mp3', type: 'audio', url: 'blob:a1', duration: 5 }
     const a2: MediaAsset = { id: 'a2', name: 'b.mp3', type: 'audio', url: 'blob:a2', duration: 5 }
