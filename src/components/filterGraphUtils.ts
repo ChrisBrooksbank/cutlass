@@ -388,10 +388,10 @@ export function buildFFmpegArgs(
 
   if (positionedVideoLabels.length === 0) {
     videoMap = '0:v'
-  } else if (positionedVideoLabels.length === 1) {
-    videoMap = `[${positionedVideoLabels[0]}]`
   } else {
-    // Compute total project duration for the base canvas
+    // Compute total project duration for the base canvas. Even a single
+    // positioned stream is composited onto this finite base so FFmpeg has a
+    // bounded output timeline and gaps render as black frames.
     let totalDuration = 0
     for (const track of project.tracks) {
       for (const clip of track.clips) {
@@ -411,7 +411,7 @@ export function buildFFmpegArgs(
       const isLast = i === positionedVideoLabels.length - 1
       const outLabel = isLast ? 'vout' : `vcomp_${i}`
       fragments.push(
-        `[${current}][${positionedVideoLabels[i]}]overlay=eof_action=pass[${outLabel}]`,
+        `[${current}][${positionedVideoLabels[i]}]overlay=eof_action=pass:shortest=1[${outLabel}]`,
       )
       current = outLabel
     }

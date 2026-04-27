@@ -425,6 +425,27 @@ describe('buildFFmpegArgs', () => {
     expect(args.videoMap).toMatch(/^\[.+\]$/)
   })
 
+  it('composites a single video clip onto a finite canvas', () => {
+    const asset = makeVideoAsset()
+    const clip = makeClip({ duration: 5 })
+    const track: Track = {
+      id: 't1',
+      type: 'video',
+      name: 'V1',
+      muted: false,
+      locked: false,
+      volume: 1,
+      noiseReduction: false,
+      clips: [clip],
+    }
+    const project = makeProject({ tracks: [track], mediaAssets: [asset] })
+    const args = buildFFmpegArgs(project)
+    expect(args.filterComplex).toContain('color=black')
+    expect(args.filterComplex).toContain('d=5')
+    expect(args.filterComplex).toContain('overlay=eof_action=pass:shortest=1')
+    expect(args.videoMap).toBe('[vout]')
+  })
+
   it('filterComplex contains trim filter for the clip sourceIn/sourceOut', () => {
     const asset = makeVideoAsset()
     const clip = makeClip({ sourceIn: 2, sourceOut: 7 })

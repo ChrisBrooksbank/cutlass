@@ -34,10 +34,10 @@ describe('supportsMultiThreadFFmpeg', () => {
     vi.unstubAllGlobals()
   })
 
-  it('returns true when SharedArrayBuffer exists and isolation is not explicitly false', () => {
+  it('returns false by default even when SharedArrayBuffer exists', () => {
     vi.stubGlobal('SharedArrayBuffer', class {})
     vi.stubGlobal('crossOriginIsolated', true)
-    expect(supportsMultiThreadFFmpeg()).toBe(true)
+    expect(supportsMultiThreadFFmpeg()).toBe(false)
   })
 
   it('returns false when crossOriginIsolated is false', () => {

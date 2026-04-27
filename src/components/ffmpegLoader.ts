@@ -31,8 +31,11 @@ const CDN_ST_CORE_BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.9/dist/
 /** Whether CDN mode is enabled via the VITE_FFMPEG_CDN environment variable. */
 const USE_CDN = import.meta.env.VITE_FFMPEG_CDN === 'true'
 
-/** Escape hatch for browsers/environments where the pthread core is unstable. */
-const DISABLE_MT = import.meta.env.VITE_FFMPEG_DISABLE_MT === 'true'
+/**
+ * Multi-threaded FFmpeg is faster but has been less reliable in-browser for
+ * long encodes. Keep it opt-in so production exports prefer the stable core.
+ */
+const ENABLE_MT = import.meta.env.VITE_FFMPEG_ENABLE_MT === 'true'
 
 // ---------------------------------------------------------------------------
 // Environment detection
@@ -56,7 +59,7 @@ export function supportsSharedArrayBuffer(): boolean {
  * explicit `false`.
  */
 export function supportsMultiThreadFFmpeg(): boolean {
-  return !DISABLE_MT && supportsSharedArrayBuffer() && globalThis.crossOriginIsolated !== false
+  return ENABLE_MT && supportsSharedArrayBuffer() && globalThis.crossOriginIsolated !== false
 }
 
 // ---------------------------------------------------------------------------
