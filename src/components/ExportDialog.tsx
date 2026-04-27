@@ -331,6 +331,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
 
       // Write source media files to FFmpeg's virtual FS
       const inputs = collectInputs(project)
+      const inputFilenames = inputs.map((input, i) => `input${i}${getExtFromInput(input)}`)
 
       if (inputs.length === 0) {
         throw new Error(
@@ -339,14 +340,20 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
       }
 
       for (let i = 0; i < inputs.length; i++) {
-        const inputName = `input${i}${getExtFromUrl(inputs[i].url)}`
         const data = await fetchFile(inputs[i].url)
-        await ffmpeg.writeFile(inputName, data)
+        await ffmpeg.writeFile(inputFilenames[i], data)
       }
 
       if (abortRef.current) return
 
       const capturedCommands: { label: string; cmd: string }[] = []
+      const inputArgs = inputs.flatMap((input, i) => {
+        const filename = inputFilenames[i]
+        if (input.type === 'image') {
+          return ['-loop', '1', '-framerate', String(project.fps), '-i', filename]
+        }
+        return ['-i', filename]
+      })
 
       if (exportType === 'gif') {
         // GIF two-pass pipeline
@@ -366,7 +373,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         // Pass 1: palettegen
         setExportPhase('Pass 1/2: Generating palette...')
         const paletteArgs = [
-          ...inputs.flatMap((_, i) => ['-i', `input${i}${getExtFromUrl(inputs[i].url)}`]),
+          ...inputArgs,
           ...buildGifPalettegenArgs(gifSettings, inputs.length, filterGraph),
           'palette.png',
         ]
@@ -390,7 +397,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
         setExportPhase('Pass 2/2: Encoding GIF...')
         const paletteInputIndex = inputs.length
         const gifArgs = [
-          ...inputs.flatMap((_, i) => ['-i', `input${i}${getExtFromUrl(inputs[i].url)}`]),
+          ...inputArgs,
           '-i',
           'palette.png',
           ...buildGifPaletteUseArgs(gifSettings, paletteInputIndex, filterGraph),
@@ -433,9 +440,7 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           const a: string[] = []
 
           // Input files
-          for (let i = 0; i < inputs.length; i++) {
-            a.push('-i', `input${i}${getExtFromUrl(inputs[i].url)}`)
-          }
+          a.push(...inputArgs)
 
           // The filter_complex already scales clips to targetRes.
           // Just wire up the map labels without an extra scale stage.
@@ -886,16 +891,30 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getExtFromUrl(url: string): string {
-  // Blob URLs have no meaningful file extension — default to .webm since
-  // all browser-recorded media (screen capture, voiceover) uses WebM.
-  if (url.startsWith('blob:')) return '.webm'
+function getExtFromInput(input: { name?: string; type: string; url: string }): string {
+  const nameExt = getExtFromPath(input.name ?? '')
+  if (nameExt) return nameExt
+
+  const urlExt = input.url.startsWith('blob:') ? '' : getExtFromPath(input.url)
+  if (urlExt) return urlExt
+
+  if (input.type === 'image') return '.png'
+  if (input.type === 'audio') return '.webm'
+  return '.webm'
+}
+
+function getExtFromPath(path: string): string {
   try {
-    const pathname = new URL(url, 'http://localhost').pathname
-    const ext = pathname.substring(pathname.lastIndexOf('.'))
-    return ext || '.mp4'
+    const pathname = new URL(path, 'http://localhost').pathname
+    const filename = pathname.split('/').pop() ?? ''
+    const dotIndex = filename.lastIndexOf('.')
+    if (dotIndex <= 0 || dotIndex === filename.length - 1) return ''
+    return filename.slice(dotIndex).toLowerCase()
   } catch {
-    return '.mp4'
+    const filename = path.split(/[\\/]/).pop() ?? ''
+    const dotIndex = filename.lastIndexOf('.')
+    if (dotIndex <= 0 || dotIndex === filename.length - 1) return ''
+    return filename.slice(dotIndex).toLowerCase()
   }
 }
 

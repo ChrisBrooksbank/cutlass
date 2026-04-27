@@ -313,7 +313,29 @@ describe('collectInputs', () => {
     const project = makeProject({ tracks: [track], mediaAssets: [asset] })
     const result = collectInputs(project)
     expect(result).toHaveLength(1)
-    expect(result[0]).toEqual({ url: 'blob:video1', clipId: 'c1' })
+    expect(result[0]).toEqual({
+      url: 'blob:video1',
+      clipId: 'c1',
+      name: 'clip.mp4',
+      type: 'video',
+    })
+  })
+
+  it('includes image asset type so exports can loop stills', () => {
+    const asset = makeVideoAsset({ id: 'a1', url: 'blob:image1', type: 'image', duration: 0 })
+    const clip = makeClip({ id: 'c1', sourceId: 'a1' })
+    const track: Track = {
+      id: 't1',
+      type: 'video',
+      name: 'V1',
+      muted: false,
+      locked: false,
+      volume: 1,
+      noiseReduction: false,
+      clips: [clip],
+    }
+    const project = makeProject({ tracks: [track], mediaAssets: [asset] })
+    expect(collectInputs(project)[0].type).toBe('image')
   })
 
   it('skips clips whose asset is missing', () => {

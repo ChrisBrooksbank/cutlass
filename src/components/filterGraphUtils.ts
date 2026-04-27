@@ -19,7 +19,7 @@
  *    position, volume-scaled, and finally mixed together with amix.
  */
 
-import type { ProjectState, Clip } from '@/store/types'
+import type { ProjectState, Clip, MediaAssetType } from '@/store/types'
 import { getEffectHandler } from './effectRegistry'
 import type { ExportContext } from './effectRegistry'
 
@@ -32,6 +32,10 @@ export interface ClipInput {
   url: string
   /** The clip that uses this input */
   clipId: string
+  /** Original asset filename, used to preserve an FFmpeg-friendly extension. */
+  name: string
+  /** Type of the source asset. Images need looping at input time. */
+  type: MediaAssetType
 }
 
 export interface FFmpegArgs {
@@ -217,7 +221,8 @@ export function collectInputs(project: ProjectState): ClipInput[] {
   for (const track of project.tracks) {
     for (const clip of track.clips) {
       if (!assetMap.has(clip.sourceId)) continue
-      inputs.push({ url: assetMap.get(clip.sourceId)!.url, clipId: clip.id })
+      const asset = assetMap.get(clip.sourceId)!
+      inputs.push({ url: asset.url, clipId: clip.id, name: asset.name, type: asset.type })
     }
   }
   return inputs
