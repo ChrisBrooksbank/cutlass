@@ -104,8 +104,9 @@ export function extractVideoThumbnail(
       // Use requestVideoFrameCallback when available to ensure the frame is
       // fully decoded/painted before capturing. Fall back to rAF.
       if ('requestVideoFrameCallback' in video) {
-        (video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => void })
-          .requestVideoFrameCallback(draw)
+        ;(
+          video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => void }
+        ).requestVideoFrameCallback(draw)
       } else {
         requestAnimationFrame(draw)
       }

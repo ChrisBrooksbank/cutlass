@@ -32,9 +32,15 @@ export default function Playhead({
   const ppsRef = useRef(pixelsPerSecond)
   const scrollLeftRef = useRef(scrollLeft)
   const tracksRef = useRef(tracks)
-  useEffect(() => { ppsRef.current = pixelsPerSecond }, [pixelsPerSecond])
-  useEffect(() => { scrollLeftRef.current = scrollLeft }, [scrollLeft])
-  useEffect(() => { tracksRef.current = tracks }, [tracks])
+  useEffect(() => {
+    ppsRef.current = pixelsPerSecond
+  }, [pixelsPerSecond])
+  useEffect(() => {
+    scrollLeftRef.current = scrollLeft
+  }, [scrollLeft])
+  useEffect(() => {
+    tracksRef.current = tracks
+  }, [tracks])
 
   const x = TRACK_HEADER_WIDTH + currentTime * pixelsPerSecond - scrollLeft
 
@@ -51,7 +57,10 @@ export default function Playhead({
     function onMouseMove() {
       const pos = safeStage.getPointerPosition()
       if (!pos) return
-      const rawTime = Math.max(0, (pos.x - TRACK_HEADER_WIDTH + scrollLeftRef.current) / ppsRef.current)
+      const rawTime = Math.max(
+        0,
+        (pos.x - TRACK_HEADER_WIDTH + scrollLeftRef.current) / ppsRef.current,
+      )
       const boundaries = getClipBoundaryTimes(tracksRef.current)
       const time = snapTime(rawTime, boundaries, SNAP_THRESHOLD_SEC)
       onSeek(time)

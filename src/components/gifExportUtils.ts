@@ -113,7 +113,10 @@ export function buildGifPalettegenArgs(
 /**
  * Build the FFmpeg `-lavfi` filter graph for the palette-use pass (simple mode).
  */
-export function buildGifPaletteUseFilter(settings: GifExportSettings, paletteInputIndex = 1): string {
+export function buildGifPaletteUseFilter(
+  settings: GifExportSettings,
+  paletteInputIndex = 1,
+): string {
   const { fps, width } = settings
   return `[0:v] ${gifScaleChain(fps, width)} [x]; [x][${paletteInputIndex}:v] paletteuse`
 }
