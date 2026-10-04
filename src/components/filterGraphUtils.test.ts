@@ -177,6 +177,11 @@ describe('buildClipVideoFilter', () => {
     expect(f).toContain('scale=1280:720')
   })
 
+  it('normalizes fps, pixel format and SAR so xfade accepts mixed sources', () => {
+    const f = buildClipVideoFilter(makeClip(), 0, 'out', { width: 1280, height: 720, fps: 30 })
+    expect(f).toContain('fps=30,format=yuv420p,setsar=1')
+  })
+
   it('appends effect filters when clip has effects', () => {
     const clip = makeClip({
       effects: [
@@ -442,8 +447,28 @@ describe('buildFFmpegArgs', () => {
     const args = buildFFmpegArgs(project)
     expect(args.filterComplex).toContain('color=black')
     expect(args.filterComplex).toContain('d=5')
-    expect(args.filterComplex).toContain('overlay=eof_action=pass:shortest=1')
+    expect(args.filterComplex).toContain('overlay=eof_action=pass')
     expect(args.videoMap).toBe('[vout]')
+  })
+
+  it('does not end the export when the first overlaid clip ends', () => {
+    const asset = makeVideoAsset()
+    const c1 = makeClip({ id: 'c1', startTime: 0, duration: 2 })
+    const c2 = makeClip({ id: 'c2', startTime: 4, duration: 2 })
+    const track: Track = {
+      id: 't1',
+      type: 'video',
+      name: 'V1',
+      muted: false,
+      locked: false,
+      volume: 1,
+      noiseReduction: false,
+      clips: [c1, c2],
+    }
+    const project = makeProject({ tracks: [track], mediaAssets: [asset] })
+    const args = buildFFmpegArgs(project)
+    expect(args.filterComplex).toContain('d=6')
+    expect(args.filterComplex).not.toContain('shortest=1')
   })
 
   it('filterComplex contains trim filter for the clip sourceIn/sourceOut', () => {
@@ -508,7 +533,7 @@ describe('buildFFmpegArgs', () => {
     expect(args.filterComplex).toContain('atrim=')
   })
 
-  it('video clips do not create audio filters because their audio stream may be absent', () => {
+  it('video clips contribute their embedded audio', () => {
     const asset = makeVideoAsset()
     const clip = makeClip()
     const track: Track = {
@@ -523,9 +548,46 @@ describe('buildFFmpegArgs', () => {
     }
     const project = makeProject({ tracks: [track], mediaAssets: [asset] })
     const args = buildFFmpegArgs(project)
+    expect(args.audioMap).not.toBeNull()
+    expect(args.filterComplex).toContain('[0:a]atrim=')
+  })
+
+  it('skipVideoAudio omits video clip audio so silent recordings can export', () => {
+    const asset = makeVideoAsset()
+    const clip = makeClip()
+    const track: Track = {
+      id: 't1',
+      type: 'video',
+      name: 'V1',
+      muted: false,
+      locked: false,
+      volume: 1,
+      noiseReduction: false,
+      clips: [clip],
+    }
+    const project = makeProject({ tracks: [track], mediaAssets: [asset] })
+    const args = buildFFmpegArgs(project, { skipVideoAudio: true })
     expect(args.audioMap).toBeNull()
     expect(args.filterComplex).not.toContain('[0:a]')
     expect(args.filterComplex).not.toContain('atrim=')
+  })
+
+  it('noise reduction adds a high-pass filter for the track', () => {
+    const a1: MediaAsset = { id: 'a1', name: 'a.mp3', type: 'audio', url: 'blob:a1', duration: 5 }
+    const c1 = makeClip({ id: 'c1', sourceId: 'a1' })
+    const track: Track = {
+      id: 'ta',
+      type: 'audio',
+      name: 'A1',
+      muted: false,
+      locked: false,
+      volume: 1,
+      noiseReduction: true,
+      clips: [c1],
+    }
+    const project = makeProject({ tracks: [track], mediaAssets: [a1] })
+    const args = buildFFmpegArgs(project)
+    expect(args.filterComplex).toContain('highpass=f=80')
   })
 
   it('two audio clips produce amix in filterComplex', () => {

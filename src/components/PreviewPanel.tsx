@@ -71,7 +71,9 @@ function BlurRect({
   const cleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    return () => { cleanupRef.current?.() }
+    return () => {
+      cleanupRef.current?.()
+    }
   }, [])
 
   const region = computeBlurRegion(effect, clipTime)
@@ -214,7 +216,9 @@ function TextRect({
   const cleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    return () => { cleanupRef.current?.() }
+    return () => {
+      cleanupRef.current?.()
+    }
   }, [])
 
   const overlay = computeTextOverlay(effect)
@@ -354,7 +358,9 @@ function ShapeRectElement({
   const cleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    return () => { cleanupRef.current?.() }
+    return () => {
+      cleanupRef.current?.()
+    }
   }, [])
 
   const shape = computeShapeRect(effect)
@@ -440,7 +446,9 @@ function ShapeCircleElement({
   const cleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    return () => { cleanupRef.current?.() }
+    return () => {
+      cleanupRef.current?.()
+    }
   }, [])
 
   const shape = computeShapeCircle(effect)
@@ -529,7 +537,9 @@ function ShapeArrowElement({
   const cleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    return () => { cleanupRef.current?.() }
+    return () => {
+      cleanupRef.current?.()
+    }
   }, [])
 
   const shape = computeShapeArrow(effect)
@@ -777,7 +787,10 @@ export default function PreviewPanel() {
     const video2 = video2Ref.current
     if (!video2) return
     if (isPlaying && activeTransition && incomingAsset) {
-      const src = incomingSourceTime(activeTransition, useEditorStore.getState().playback.currentTime)
+      const src = incomingSourceTime(
+        activeTransition,
+        useEditorStore.getState().playback.currentTime,
+      )
       video2.currentTime = src
       video2.playbackRate = activeTransition.incomingClip.speed
       video2.play().catch(() => {
@@ -825,9 +838,15 @@ export default function PreviewPanel() {
           if (nowClip?.id !== activeClipIdRef.current) {
             activeClipIdRef.current = nowClip?.id ?? null
             const v = videoRef.current
-            if (v && nowClip) {
+            if (v && !nowClip) {
+              // Entered a gap — stop the previous clip from playing on
+              v.pause()
+            } else if (v && nowClip) {
               const asset = state.project.mediaAssets.find((a) => a.id === nowClip.sourceId)
               if (asset && asset.url !== v.src) {
+                // Record the swap so the src-sync effect doesn't reload (and pause)
+                // the element again on the next render.
+                currentAssetRef.current = asset
                 v.src = asset.url
                 v.load()
               }

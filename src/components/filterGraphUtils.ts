@@ -155,6 +155,10 @@ export function buildClipVideoFilter(
   // 4. Scale to project canvas dimensions (ensure even for codec compatibility)
   filters.push(`scale=${ensureEven(project.width)}:${ensureEven(project.height)}`)
 
+  // 5. Normalize frame rate, pixel format and aspect so streams from different
+  //    sources can be joined by xfade (which rejects mismatched inputs).
+  filters.push(`fps=${project.fps}`, 'format=yuv420p', 'setsar=1')
+
   return `[${inputIdx}:v]${filters.join(',')}[${outputLabel}]`
 }
 
@@ -283,7 +287,12 @@ function groupClipsIntoChains(clips: Clip[]): Clip[][] {
  */
 export function buildFFmpegArgs(
   project: ProjectState,
-  options?: { skipAudio?: boolean; outputSize?: { width: number; height: number } },
+  options?: {
+    skipAudio?: boolean
+    /** Ignore the embedded audio of clips on video tracks (e.g. silent recordings). */
+    skipVideoAudio?: boolean
+    outputSize?: { width: number; height: number }
+  },
 ): FFmpegArgs {
   const assetMap = new Map(project.mediaAssets.map((a) => [a.id, a]))
 
@@ -411,7 +420,9 @@ export function buildFFmpegArgs(
       const isLast = i === positionedVideoLabels.length - 1
       const outLabel = isLast ? 'vout' : `vcomp_${i}`
       fragments.push(
-        `[${current}][${positionedVideoLabels[i]}]overlay=eof_action=pass:shortest=1[${outLabel}]`,
+        // The finite base canvas bounds the output; `shortest=1` would instead
+        // cut the export off as soon as the first overlaid clip ends.
+        `[${current}][${positionedVideoLabels[i]}]overlay=eof_action=pass[${outLabel}]`,
       )
       current = outLabel
     }
@@ -436,7 +447,12 @@ export function buildFFmpegArgs(
 
   for (const track of project.tracks) {
     if (track.muted) continue
-    if (track.type !== 'audio') continue
+    // Audio tracks contribute audio assets; video tracks contribute the embedded
+    // audio of video assets (e.g. screen recordings with system audio), matching
+    // what the preview plays.
+    const sourceType = track.type === 'audio' ? 'audio' : track.type === 'video' ? 'video' : null
+    if (!sourceType) continue
+    if (sourceType === 'video' && options?.skipVideoAudio) continue
 
     const sorted = [...track.clips].sort((a, b) => a.startTime - b.startTime)
 
@@ -444,16 +460,22 @@ export function buildFFmpegArgs(
       const inputIdx = clipInputIdx.get(clip.id)
       if (inputIdx === undefined) continue
       const asset = assetMap.get(clip.sourceId)
-      if (!asset || asset.type !== 'audio') continue
+      if (!asset || asset.type !== sourceType) continue
 
       const baseLabel = `ap_${sanitizeLabel(clip.id)}`
 
-      if (track.volume !== 1) {
-        // Chain: audio processing → pre-label → volume → final label
+      // Post-processing: noise reduction (high-pass at 80 Hz, as in the preview
+      // audio graph) and track volume.
+      const post: string[] = []
+      if (track.noiseReduction) post.push('highpass=f=80')
+      if (track.volume !== 1) post.push(`volume=${track.volume}`)
+
+      if (post.length > 0) {
+        // Chain: audio processing → pre-label → post filters → final label
         const preLabel = `${baseLabel}_pre`
         const audioFilter = buildClipAudioFilter(clip, inputIdx, preLabel)
         fragments.push(audioFilter)
-        fragments.push(`[${preLabel}]volume=${track.volume}[${baseLabel}]`)
+        fragments.push(`[${preLabel}]${post.join(',')}[${baseLabel}]`)
       } else {
         fragments.push(buildClipAudioFilter(clip, inputIdx, baseLabel))
       }

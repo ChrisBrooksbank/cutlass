@@ -320,6 +320,21 @@ describe('clips', () => {
     expect(right.sourceOut).toBe(10)
   })
 
+  it('shifts keyframes on the right half so they stay aligned to the media', () => {
+    const { clipId } = addTrackAndClip()
+    const effectId = getStore().addEffect(clipId, { type: 'zoom-pan', params: {}, keyframes: [] })
+    getStore().addKeyframe(clipId, effectId, { time: 8, value: 2, easing: 'linear' })
+
+    const [leftId, rightId] = getStore().splitClip(clipId, 7)!
+    const clips = getStore().project.tracks[0].clips
+    const left = clips.find((c) => c.id === leftId)!
+    const right = clips.find((c) => c.id === rightId)!
+
+    expect(left.effects[0].keyframes[0].time).toBe(8)
+    // Split happened 5s into the clip, so the keyframe moves 5s earlier
+    expect(right.effects[0].keyframes[0].time).toBe(3)
+  })
+
   it('returns null for split outside clip bounds', () => {
     const { clipId } = addTrackAndClip()
     expect(getStore().splitClip(clipId, 1)).toBeNull() // before clip
