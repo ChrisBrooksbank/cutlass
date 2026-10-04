@@ -2,14 +2,14 @@ import { writeFileSync } from 'fs'
 import { deflateSync } from 'zlib'
 
 function crc32(buf) {
-  let crc = 0xFFFFFFFF
+  let crc = 0xffffffff
   for (let i = 0; i < buf.length; i++) {
     crc ^= buf[i]
     for (let j = 0; j < 8; j++) {
-      crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0)
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
     }
   }
-  return (crc ^ 0xFFFFFFFF) >>> 0
+  return (crc ^ 0xffffffff) >>> 0
 }
 
 function makeChunk(type, data) {
@@ -28,8 +28,8 @@ function createPNG(size, bgR, bgG, bgB) {
   const ihdr = Buffer.alloc(13)
   ihdr.writeUInt32BE(size, 0)
   ihdr.writeUInt32BE(size, 4)
-  ihdr[8] = 8  // bit depth
-  ihdr[9] = 2  // RGB
+  ihdr[8] = 8 // bit depth
+  ihdr[9] = 2 // RGB
   const ihdrChunk = makeChunk('IHDR', ihdr)
 
   const rowSize = 1 + size * 3

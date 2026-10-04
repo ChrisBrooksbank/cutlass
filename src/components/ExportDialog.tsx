@@ -433,10 +433,14 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
             ? { width: ensureEven(customWidth), height: ensureEven(customHeight) }
             : RESOLUTION_PRESET_VALUES[preset]
 
-        const buildVideoExportArgs = (skipAudio: boolean): string[] => {
+        const buildVideoExportArgs = (audioMode: 'all' | 'audio-tracks' | 'none'): string[] => {
           // Pass outputSize so buildFFmpegArgs scales clips directly to the export
           // resolution instead of intermediate project dimensions (e.g. 1920×1080).
-          const ffmpegArgs = buildFFmpegArgs(project, { skipAudio, outputSize: targetRes })
+          const ffmpegArgs = buildFFmpegArgs(project, {
+            skipAudio: audioMode === 'none',
+            skipVideoAudio: audioMode !== 'all',
+            outputSize: targetRes,
+          })
           const a: string[] = []
 
           // Input files
@@ -486,26 +490,30 @@ export default function ExportDialog({ durationSec, onClose }: ExportDialogProps
           return a
         }
 
-        // Try with audio first; if it fails because an input lacks audio
-        // streams, retry video-only.
+        // Try with all audio first (including the embedded audio of video clips).
+        // If it fails because an input lacks an audio stream, retry using only
+        // the audio tracks, and finally video-only.
         setExportPhase('Encoding video...')
-        const firstArgs = buildVideoExportArgs(false)
+        const firstArgs = buildVideoExportArgs('all')
         capturedCommands.push({ label: 'Video encode', cmd: `ffmpeg ${firstArgs.join(' ')}` })
         setFfmpegCommands([...capturedCommands])
 
-        let videoExit = await ffmpeg.exec(firstArgs)
-        if (videoExit !== 0) {
+        const missingAudioStream = () => {
           const lastLogs = ffmpegLogs.slice(-10).join('\n')
-          if (lastLogs.includes('matches no streams') || lastLogs.includes('does not contain')) {
-            // Input(s) have no audio stream — retry without audio mapping
-            const retryArgs = buildVideoExportArgs(true)
-            capturedCommands.push({
-              label: 'Video encode (retry, no audio)',
-              cmd: `ffmpeg ${retryArgs.join(' ')}`,
-            })
-            setFfmpegCommands([...capturedCommands])
-            videoExit = await ffmpeg.exec(retryArgs)
-          }
+          return lastLogs.includes('matches no streams') || lastLogs.includes('does not contain')
+        }
+
+        let videoExit = await ffmpeg.exec(firstArgs)
+        const retries = [
+          { mode: 'audio-tracks', label: 'Video encode (retry, audio tracks only)' },
+          { mode: 'none', label: 'Video encode (retry, no audio)' },
+        ] as const
+        for (const retry of retries) {
+          if (videoExit === 0 || abortRef.current || !missingAudioStream()) break
+          const retryArgs = buildVideoExportArgs(retry.mode)
+          capturedCommands.push({ label: retry.label, cmd: `ffmpeg ${retryArgs.join(' ')}` })
+          setFfmpegCommands([...capturedCommands])
+          videoExit = await ffmpeg.exec(retryArgs)
         }
 
         if (videoExit !== 0) {

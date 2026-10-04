@@ -1722,7 +1722,12 @@ function ClipProperties({ clipId }: { clipId: string }) {
         >
           Keyframes
         </div>
-        <KeyframeEditor clipId={clipId} clip_startTime={clip.startTime} clip_duration={clip.duration} effects={clip.effects} />
+        <KeyframeEditor
+          clipId={clipId}
+          clip_startTime={clip.startTime}
+          clip_duration={clip.duration}
+          effects={clip.effects}
+        />
       </div>
     </div>
   )

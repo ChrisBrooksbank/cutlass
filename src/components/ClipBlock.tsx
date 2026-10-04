@@ -205,9 +205,10 @@ export default function ClipBlock({
         const snappedStartTime = snapTime(result.startTime, snapTargets, SNAP_THRESHOLD_SEC)
         // Re-clamp after snapping to prevent sourceIn from going negative
         const maxLeftShift = trimRef.current.originalSourceIn / speed
-        const clampedStartTime = Math.max(
-          trimRef.current.originalStartTime - maxLeftShift,
-          snappedStartTime,
+        // ...and to keep the right edge fixed (snapping can overshoot it)
+        const clampedStartTime = Math.min(
+          originalRightEdge - MIN_CLIP_DURATION,
+          Math.max(trimRef.current.originalStartTime - maxLeftShift, snappedStartTime),
         )
         const snappedDuration = Math.max(MIN_CLIP_DURATION, originalRightEdge - clampedStartTime)
         trimRef.current.currentStartTime = clampedStartTime

@@ -19,8 +19,12 @@ export default function PWAPrompts() {
         <div style={bannerStyle}>
           <span>Install Cutlass for a faster, offline-capable experience.</span>
           <div style={btnGroup}>
-            <button style={primaryBtn} onClick={promptInstall}>Install</button>
-            <button style={dismissBtn} onClick={() => setInstallDismissed(true)}>Not now</button>
+            <button style={primaryBtn} onClick={promptInstall}>
+              Install
+            </button>
+            <button style={dismissBtn} onClick={() => setInstallDismissed(true)}>
+              Not now
+            </button>
           </div>
         </div>
       )}
@@ -28,8 +32,12 @@ export default function PWAPrompts() {
         <div style={{ ...bannerStyle, background: '#1b3a4b' }}>
           <span>A new version is available.</span>
           <div style={btnGroup}>
-            <button style={primaryBtn} onClick={applyUpdate}>Update now</button>
-            <button style={dismissBtn} onClick={() => setUpdateDismissed(true)}>Later</button>
+            <button style={primaryBtn} onClick={applyUpdate}>
+              Update now
+            </button>
+            <button style={dismissBtn} onClick={() => setUpdateDismissed(true)}>
+              Later
+            </button>
           </div>
         </div>
       )}

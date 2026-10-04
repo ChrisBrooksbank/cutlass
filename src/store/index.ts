@@ -430,6 +430,12 @@ export const useEditorStore = create<EditorStore>()(
           startTime: splitTime,
           duration: rightDuration,
           sourceIn: splitSourceTime,
+          // Keyframe times are relative to the clip start, so shift them to keep
+          // animations aligned with the same moments in the source media.
+          effects: clip.effects.map((e) => ({
+            ...e,
+            keyframes: e.keyframes.map((k) => ({ ...k, time: k.time - leftDuration })),
+          })),
         }
 
         set((prev) => ({
