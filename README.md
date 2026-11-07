@@ -1,5 +1,9 @@
 # Cutlass
 
+<!-- hub-link -->
+> Part of [Chris's app hub](https://chrisbrooksbank-hub.netlify.app) - a directory of all my deployed apps.
+<!-- /hub-link -->
+
 A browser-based video editor built for screen recordings. Record your screen, trim and arrange clips on a multi-track timeline, add effects and annotations, then export — all without leaving the browser.
 
 **Live demo:** https://videoeditor-app.netlify.app
